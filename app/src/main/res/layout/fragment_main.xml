@@ -31,7 +31,7 @@
                 android:layout_height="wrap_content"
                 android:layout_gravity="end"
                 android:layout_marginHorizontal="16dp"
-                tools:icon="@drawable/ic_shelves"
+                tools:icon="@drawable/ic_device"
                 tools:text="Pixel 7 Pro" />
 
         </com.google.android.material.appbar.MaterialToolbar>

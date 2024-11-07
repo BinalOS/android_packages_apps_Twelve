@@ -31,7 +31,7 @@ enum class ProviderType(
      */
     LOCAL(
         R.string.provider_type_local,
-        R.drawable.ic_shelves,
+        R.drawable.ic_device,
         listOf(),
     ),
 
