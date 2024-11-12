@@ -6,24 +6,16 @@
 <navigation xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
-    android:id="@+id/fragment_audio_bottom_sheet_dialog"
-    app:startDestination="@id/audioBottomSheetDialogFragment">
+    android:id="@+id/fragment_genre"
+    app:startDestination="@id/genreFragment">
 
-    <dialog
-        android:id="@+id/audioBottomSheetDialogFragment"
-        android:name="org.lineageos.twelve.fragments.AudioBottomSheetDialogFragment"
-        tools:layout="@layout/fragment_audio_bottom_sheet_dialog">
-
-        <action
-            android:id="@+id/action_audioBottomSheetDialogFragment_to_fragment_add_or_remove_from_playlists"
-            app:destination="@+id/fragment_add_or_remove_from_playlists"
-            app:enterAnim="@anim/nav_default_enter_anim"
-            app:exitAnim="@anim/nav_default_exit_anim"
-            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
-            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+    <fragment
+        android:id="@+id/genreFragment"
+        android:name="org.lineageos.twelve.fragments.GenreFragment"
+        tools:layout="@layout/fragment_genre">
 
         <action
-            android:id="@+id/action_audioBottomSheetDialogFragment_to_fragment_album"
+            android:id="@+id/action_genreFragment_to_fragment_album"
             app:destination="@+id/fragment_album"
             app:enterAnim="@anim/nav_default_enter_anim"
             app:exitAnim="@anim/nav_default_exit_anim"
@@ -31,21 +23,29 @@
             app:popExitAnim="@anim/nav_default_pop_exit_anim" />
 
         <action
-            android:id="@+id/action_audioBottomSheetDialogFragment_to_fragment_artist"
-            app:destination="@+id/fragment_artist"
+            android:id="@+id/action_genreFragment_to_fragment_audio_bottom_sheet_dialog"
+            app:destination="@+id/fragment_audio_bottom_sheet_dialog"
             app:enterAnim="@anim/nav_default_enter_anim"
             app:exitAnim="@anim/nav_default_exit_anim"
             app:popEnterAnim="@anim/nav_default_pop_enter_anim"
             app:popExitAnim="@anim/nav_default_pop_exit_anim" />
 
         <action
-            android:id="@+id/action_audioBottomSheetDialogFragment_to_fragment_genre"
-            app:destination="@+id/fragment_genre"
+            android:id="@+id/action_genreFragment_to_fragment_now_playing"
+            app:destination="@+id/fragment_now_playing"
             app:enterAnim="@anim/nav_default_enter_anim"
             app:exitAnim="@anim/nav_default_exit_anim"
             app:popEnterAnim="@anim/nav_default_pop_enter_anim"
             app:popExitAnim="@anim/nav_default_pop_exit_anim" />
 
-    </dialog>
+        <action
+            android:id="@+id/action_genreFragment_to_fragment_playlist"
+            app:destination="@+id/fragment_playlist"
+            app:enterAnim="@anim/nav_default_enter_anim"
+            app:exitAnim="@anim/nav_default_exit_anim"
+            app:popEnterAnim="@anim/nav_default_pop_enter_anim"
+            app:popExitAnim="@anim/nav_default_pop_exit_anim" />
+
+    </fragment>
 
 </navigation>

@@ -235,7 +235,7 @@ class MediaRepository(
                 name, server, username, password, useLegacyAuthentication
             )
 
-            Pair(providerType, typeId)
+            providerType to typeId
         }
     }
 
@@ -351,6 +351,13 @@ class MediaRepository(
      */
     fun artist(artistUri: Uri) = withMediaItemsDataSourceFlow(artistUri) {
         artist(artistUri)
+    }
+
+    /**
+     * @see MediaDataSource.genre
+     */
+    fun genre(genreUri: Uri) = withMediaItemsDataSourceFlow(genreUri) {
+        genre(genreUri)
     }
 
     /**

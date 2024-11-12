@@ -30,6 +30,7 @@ import org.lineageos.twelve.models.Artist
 import org.lineageos.twelve.models.ArtistWorks
 import org.lineageos.twelve.models.Audio
 import org.lineageos.twelve.models.Genre
+import org.lineageos.twelve.models.GenreContent
 import org.lineageos.twelve.models.MediaType
 import org.lineageos.twelve.models.Playlist
 import org.lineageos.twelve.models.RequestStatus
@@ -38,6 +39,7 @@ import org.lineageos.twelve.query.Query
 import org.lineageos.twelve.query.and
 import org.lineageos.twelve.query.eq
 import org.lineageos.twelve.query.`in`
+import org.lineageos.twelve.query.`is`
 import org.lineageos.twelve.query.like
 import org.lineageos.twelve.query.neq
 import org.lineageos.twelve.query.query
@@ -325,8 +327,8 @@ class LocalDataSource(context: Context, private val database: TwelveDatabase) : 
             )
         ).mapEachRow(audiosProjection, mapAudio)
     ) { albums, audios ->
-        albums.firstOrNull()?.let {
-            RequestStatus.Success<_, MediaError>(Pair(it, audios))
+        albums.firstOrNull()?.let { album ->
+            RequestStatus.Success<_, MediaError>(album to audios)
         } ?: RequestStatus.Error(MediaError.NOT_FOUND)
     }
 
@@ -391,46 +393,106 @@ class LocalDataSource(context: Context, private val database: TwelveDatabase) : 
             ).mapEachRow(albumsProjection, mapAlbum)
         }
     ) { artists, albums, appearsInAlbum ->
-        artists.firstOrNull()?.let {
+        artists.firstOrNull()?.let { artist ->
             val artistWorks = ArtistWorks(
                 albums,
                 appearsInAlbum,
                 listOf(),
             )
 
-            RequestStatus.Success<_, MediaError>(Pair(it, artistWorks))
+            RequestStatus.Success<_, MediaError>(artist to artistWorks)
         } ?: RequestStatus.Error(MediaError.NOT_FOUND)
     }
 
-    override fun genre(genreUri: Uri) = combine(
-        contentResolver.queryFlow(
-            genresUri,
-            genresProjection,
-            bundleOf(
-                ContentResolver.QUERY_ARG_SQL_SELECTION to query {
-                    MediaStore.Audio.AudioColumns._ID eq Query.ARG
-                },
-                ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS to arrayOf(
-                    ContentUris.parseId(genreUri).toString(),
-                ),
-            )
-        ).mapEachRow(genresProjection, mapGenre),
-        contentResolver.queryFlow(
-            audiosUri,
-            audiosProjection,
-            bundleOf(
-                ContentResolver.QUERY_ARG_SQL_SELECTION to query {
-                    MediaStore.Audio.AudioColumns.GENRE_ID eq Query.ARG
-                },
-                ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS to arrayOf(
-                    ContentUris.parseId(genreUri).toString(),
-                ),
-            )
-        ).mapEachRow(audiosProjection, mapAudio)
-    ) { genres, audios ->
-        genres.firstOrNull()?.let {
-            RequestStatus.Success<_, MediaError>(Pair(it, audios))
-        } ?: RequestStatus.Error(MediaError.NOT_FOUND)
+    override fun genre(genreUri: Uri) = ContentUris.parseId(genreUri).let { genreId ->
+        val (genreSelection, genreSelectionArgs) = when (genreId) {
+            0L -> (MediaStore.Audio.AudioColumns.GENRE_ID `is` Query.NULL) to arrayOf()
+
+            else -> (MediaStore.Audio.AudioColumns.GENRE_ID eq Query.ARG) to
+                    arrayOf(genreId.toString())
+        }
+
+        combine(
+            contentResolver.queryFlow(
+                genresUri,
+                genresProjection,
+                bundleOf(
+                    ContentResolver.QUERY_ARG_SQL_SELECTION to query {
+                        when (genreId) {
+                            0L -> MediaStore.Audio.AudioColumns._ID `is` Query.NULL
+                            else -> MediaStore.Audio.AudioColumns._ID eq Query.ARG
+                        }
+                    },
+                    ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS to arrayOf(
+                        *when (genreId) {
+                            0L -> arrayOf()
+                            else -> arrayOf(genreId.toString())
+                        }
+                    ),
+                )
+            ).mapEachRow(genresProjection, mapGenre),
+            contentResolver.queryFlow(
+                audiosUri,
+                audioAlbumIdsProjection,
+                bundleOf(
+                    ContentResolver.QUERY_ARG_SQL_SELECTION to query {
+                        genreSelection
+                    },
+                    ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS to arrayOf(
+                        *genreSelectionArgs,
+                    ),
+                    ContentResolver.QUERY_ARG_SQL_GROUP_BY to
+                            MediaStore.Audio.AudioColumns.ALBUM_ID,
+                )
+            ).mapEachRow(audioAlbumIdsProjection) { it, indexCache ->
+                // albumId
+                it.getLong(indexCache[0])
+            }.flatMapLatest { albumIds ->
+                contentResolver.queryFlow(
+                    albumsUri,
+                    albumsProjection,
+                    bundleOf(
+                        ContentResolver.QUERY_ARG_SQL_SELECTION to query {
+                            MediaStore.Audio.AudioColumns._ID `in` List(albumIds.size) {
+                                Query.ARG
+                            }
+                        },
+                        ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS to arrayOf(
+                            *albumIds
+                                .map { it.toString() }
+                                .toTypedArray(),
+                        ),
+                    )
+                ).mapEachRow(albumsProjection, mapAlbum)
+            },
+            contentResolver.queryFlow(
+                audiosUri,
+                audiosProjection,
+                bundleOf(
+                    ContentResolver.QUERY_ARG_SQL_SELECTION to query {
+                        genreSelection
+                    },
+                    ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS to arrayOf(
+                        *genreSelectionArgs,
+                    ),
+                )
+            ).mapEachRow(audiosProjection, mapAudio)
+        ) { genres, appearsInAlbums, audios ->
+            val genre = genres.firstOrNull() ?: when (genreId) {
+                0L -> Genre(genreUri, null)
+                else -> null
+            }
+
+            genre?.let {
+                val genreContent = GenreContent(
+                    appearsInAlbums,
+                    listOf(),
+                    audios,
+                )
+
+                RequestStatus.Success<_, MediaError>(it to genreContent)
+            } ?: RequestStatus.Error(MediaError.NOT_FOUND)
+        }
     }
 
     override fun playlist(playlistUri: Uri) = database.getPlaylistDao().getPlaylistWithItems(
@@ -440,8 +502,8 @@ class LocalDataSource(context: Context, private val database: TwelveDatabase) : 
             val playlist = playlistWithItems.playlist.toModel()
 
             audios(playlistWithItems.items.map(Item::audioUri))
-                .mapLatest {
-                    RequestStatus.Success<_, MediaError>(Pair(playlist, it))
+                .mapLatest { items ->
+                    RequestStatus.Success<_, MediaError>(playlist to items)
                 }
         } ?: flowOf(
             RequestStatus.Error(

@@ -67,6 +67,7 @@
     <string name="audio_add_or_remove_from_playlists">Add or remove from playlists</string>
     <string name="open_album">Open album</string>
     <string name="open_artist">Open artist</string>
+    <string name="open_genre">Open genre</string>
 
     <!-- Playlist fragment -->
     <string name="playlist_tracks_info">%1$d tracks, %2$d minutes</string>
@@ -93,10 +94,10 @@
     <string name="audio_channel_count_unknown">Unknown</string>
     <string name="audio_encoding">Encoding</string>
     <string name="audio_encoding_unknown">Unknown</string>
-    <string name="audio_float_mode_enabled">PCM float mode enabled</string>
-    <string name="audio_float_mode_enabled_unknown">Unknown</string>
-    <string name="audio_float_mode_enabled_true">True</string>
-    <string name="audio_float_mode_enabled_false">False</string>
+    <string name="audio_float_mode">PCM float mode</string>
+    <string name="audio_float_mode_unknown">Unknown</string>
+    <string name="audio_float_mode_enabled">Enabled</string>
+    <string name="audio_float_mode_disabled">Disabled</string>
     <string name="audio_output_mode">Output mode</string>
     <string name="audio_output_mode_unknown">Unknown</string>
     <string name="audio_output_mode_pcm">PCM</string>
@@ -147,4 +148,12 @@
     <!-- Album fragment -->
     <string name="album_disc_header">Disc %1$d</string>
     <string name="track_number" translatable="false">%1$d</string>
+
+    <!-- Genre fragment -->
+    <string name="genre_appears_in_albums_header">Appears in albums</string>
+    <string name="genre_appears_in_playlists_header">Appears in playlists</string>
+    <string name="genre_audios_header">Audios</string>
+
+    <!-- Queue fragment -->
+    <string name="queue">Queue</string>
 </resources>
