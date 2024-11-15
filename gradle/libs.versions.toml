@@ -23,6 +23,7 @@ okhttp = "4.12.0"
 recyclerview = "1.3.2"
 room = "2.6.1"
 viewpager2 = "1.1.0"
+preference = "1.2.1"
 
 [libraries]
 androidx-activity = { group = "androidx.activity", name = "activity", version = "1.10.0-alpha03" }
@@ -53,6 +54,7 @@ kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-
 material = { group = "com.google.android.material", name = "material", version = "1.13.0-alpha07" }
 nier-visualizer = { group = "com.github.bogerchan", name = "Nier-Visualizer", version.ref = "nier-visualizer" }
 okhttp = { group = "com.squareup.okhttp3", name = "okhttp", version = "4.12.0" }
+androidx-preference = {group = "androidx.preference", name = "preference", version = "1.2.1"}
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
