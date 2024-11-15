@@ -46,6 +46,10 @@ android {
         }
     }
 
+    androidResources {
+        generateLocaleConfig = true
+    }
+
     buildTypes {
         release {
             // Enables code shrinking, obfuscation, and optimization.
