@@ -3,7 +3,9 @@
      SPDX-FileCopyrightText: 2024 The LineageOS Project
      SPDX-License-Identifier: Apache-2.0
 -->
-<PreferenceScreen xmlns:app="http://schemas.android.com/apk/res-auto">
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    app:title="About">
 
     <PreferenceCategory
         app:iconSpaceReserved="false"
@@ -30,6 +32,12 @@
             app:summary="@string/skip_silence_summary"
             app:title="@string/skip_silence" />
 
+    </PreferenceCategory>
+    <PreferenceCategory android:title="About">
+        <Preference
+            android:icon="@mipmap/ic_launcher"
+            android:summary="1.1"
+            android:title="@string/app_name" />
     </PreferenceCategory>
 
 </PreferenceScreen>
