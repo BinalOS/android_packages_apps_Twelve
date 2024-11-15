@@ -8,6 +8,7 @@ package org.lineageos.twelve.services
 import android.app.PendingIntent
 import android.content.Intent
 import android.media.audiofx.AudioEffect
+import android.os.Bundle
 import android.os.IBinder
 import androidx.annotation.OptIn
 import androidx.lifecycle.Lifecycle
@@ -19,23 +20,60 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
-import androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.LibraryResult
+import androidx.media3.session.MediaController
 import androidx.media3.session.MediaLibraryService
 import androidx.media3.session.MediaSession
+import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionError
+import androidx.media3.session.SessionResult
+import androidx.preference.PreferenceManager
 import kotlinx.coroutines.guava.future
 import kotlinx.coroutines.launch
 import org.lineageos.twelve.MainActivity
 import org.lineageos.twelve.R
 import org.lineageos.twelve.TwelveApplication
+import org.lineageos.twelve.ext.enableOffload
+import org.lineageos.twelve.ext.setOffloadEnabled
+import org.lineageos.twelve.ext.skipSilence
+import org.lineageos.twelve.ext.stopPlaybackOnTaskRemoved
 import org.lineageos.twelve.ui.widgets.NowPlayingAppWidgetProvider
+import kotlin.reflect.cast
 
 @OptIn(UnstableApi::class)
 class PlaybackService : MediaLibraryService(), Player.Listener, LifecycleOwner {
+    enum class CustomCommand(val value: String, extras: Bundle) {
+        /**
+         * Toggles audio offload mode.
+         *
+         * Arguments:
+         * - [ARG_VALUE] ([Boolean]): Whether to enable or disable offload
+         */
+        TOGGLE_OFFLOAD("toggle_offload", Bundle.EMPTY),
+
+        /**
+         * Toggles skip silence.
+         *
+         * Arguments:
+         * - [ARG_VALUE] ([Boolean]): Whether to enable or disable skip silence
+         */
+        TOGGLE_SKIP_SILENCE("toggle_skip_silence", Bundle.EMPTY);
+
+        val sessionCommand = SessionCommand(value, extras)
+
+        companion object {
+            const val ARG_VALUE = "value"
+
+            fun MediaController.sendCustomCommand(
+                customCommand: CustomCommand,
+                extras: Bundle
+            ) = sendCustomCommand(customCommand.sessionCommand, extras)
+        }
+    }
+
     private val dispatcher = ServiceLifecycleDispatcher(this)
     override val lifecycle: Lifecycle
         get() = dispatcher.lifecycle
@@ -49,11 +87,32 @@ class PlaybackService : MediaLibraryService(), Player.Listener, LifecycleOwner {
         )
     }
 
+    private val sharedPreferences by lazy {
+        PreferenceManager.getDefaultSharedPreferences(this)
+    }
+
     private val resumptionPlaylistRepository by lazy {
         (application as TwelveApplication).resumptionPlaylistRepository
     }
 
     private val mediaLibrarySessionCallback = object : MediaLibrarySession.Callback {
+        override fun onConnect(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo
+        ): MediaSession.ConnectionResult {
+            val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
+                .apply {
+                    for (command in CustomCommand.entries) {
+                        add(command.sessionCommand)
+                    }
+                }
+                .build()
+
+            return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+                .setAvailableSessionCommands(sessionCommands)
+                .build()
+        }
+
         override fun onPlaybackResumption(
             mediaSession: MediaSession,
             controller: MediaSession.ControllerInfo
@@ -176,6 +235,33 @@ class PlaybackService : MediaLibraryService(), Player.Listener, LifecycleOwner {
         ) = lifecycle.coroutineScope.future {
             LibraryResult.ofItemList(mediaRepositoryTree.search(query), params)
         }
+
+        override fun onCustomCommand(
+            session: MediaSession,
+            controller: MediaSession.ControllerInfo,
+            customCommand: SessionCommand,
+            args: Bundle
+        ) = lifecycle.coroutineScope.future {
+            when (customCommand.customAction) {
+                CustomCommand.TOGGLE_OFFLOAD.value -> {
+                    args.getBoolean(CustomCommand.ARG_VALUE).let {
+                        mediaLibrarySession?.player?.setOffloadEnabled(it)
+                    }
+
+                    SessionResult(SessionResult.RESULT_SUCCESS)
+                }
+
+                CustomCommand.TOGGLE_SKIP_SILENCE.value -> {
+                    args.getBoolean(CustomCommand.ARG_VALUE).let {
+                        ExoPlayer::class.cast(mediaLibrarySession?.player).skipSilenceEnabled = it
+                    }
+
+                    SessionResult(SessionResult.RESULT_SUCCESS)
+                }
+
+                else -> SessionResult(SessionError.ERROR_NOT_SUPPORTED)
+            }
+        }
     }
 
     override fun onCreate() {
@@ -191,19 +277,13 @@ class PlaybackService : MediaLibraryService(), Player.Listener, LifecycleOwner {
             .setAudioAttributes(audioAttributes, true)
             .setHandleAudioBecomingNoisy(true)
             .setRenderersFactory(TurntableRenderersFactory(this))
+            .setSkipSilenceEnabled(sharedPreferences.skipSilence)
             .experimentalSetDynamicSchedulingEnabled(true)
             .build()
 
         exoPlayer.addListener(this)
 
-        exoPlayer.trackSelectionParameters = exoPlayer.trackSelectionParameters
-            .buildUpon()
-            .setAudioOffloadPreferences(
-                AudioOffloadPreferences
-                    .Builder()
-                    .setAudioOffloadMode(AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED)
-                    .build()
-            ).build()
+        exoPlayer.setOffloadEnabled(sharedPreferences.enableOffload)
 
         mediaLibrarySession = MediaLibrarySession.Builder(
             this, exoPlayer, mediaLibrarySessionCallback
@@ -236,7 +316,9 @@ class PlaybackService : MediaLibraryService(), Player.Listener, LifecycleOwner {
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {
-        pauseAllPlayersAndStopSelf()
+        if (sharedPreferences.stopPlaybackOnTaskRemoved || !isPlaybackOngoing) {
+            pauseAllPlayersAndStopSelf()
+        }
     }
 
     override fun onDestroy() {

@@ -11,10 +11,12 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
+import androidx.media3.common.TrackSelectionParameters
 import androidx.media3.common.Tracks
 import androidx.media3.common.util.UnstableApi
 import kotlinx.coroutines.channels.awaitClose
 import org.lineageos.twelve.models.PlaybackState
+import org.lineageos.twelve.models.QueueItem
 import org.lineageos.twelve.models.RepeatMode
 
 @OptIn(UnstableApi::class)
@@ -159,7 +161,7 @@ fun Player.queueFlow() = conflatedCallbackFlow {
 
         trySend(
             mediaItems.mapIndexed { index, mediaItem ->
-                mediaItem to (index == currentMediaItemIndex)
+                QueueItem(mediaItem, index == currentMediaItemIndex)
             }
         )
     }
@@ -210,3 +212,20 @@ val Player.mediaItems: List<MediaItem>
     get() = (0 until mediaItemCount).map {
         getMediaItemAt(it)
     }
+
+@OptIn(UnstableApi::class)
+fun Player.setOffloadEnabled(enabled: Boolean) {
+    trackSelectionParameters = trackSelectionParameters.buildUpon()
+        .setAudioOffloadPreferences(
+            TrackSelectionParameters.AudioOffloadPreferences
+                .Builder()
+                .setAudioOffloadMode(
+                    if (enabled) {
+                        TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_ENABLED
+                    } else {
+                        TrackSelectionParameters.AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_DISABLED
+                    }
+                )
+                .build()
+        ).build()
+}

@@ -93,6 +93,7 @@ dependencies {
     implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.navigation.fragment.ktx)
     implementation(libs.androidx.navigation.ui.ktx)
+    implementation(libs.androidx.preference)
     implementation(libs.androidx.recyclerview)
     implementation(libs.androidx.room.runtime)
     annotationProcessor(libs.androidx.room.compiler)
@@ -101,7 +102,11 @@ dependencies {
     implementation(libs.androidx.viewpager2)
     implementation(libs.coil)
     implementation(libs.coil.network.okhttp)
-    implementation(libs.kotlinx.coroutines.guava)
+    implementation(libs.kotlinx.coroutines.guava) {
+        // Exclude compile time dependencies
+        exclude("com.google.j2objc", "j2objc-annotations")
+        exclude("org.checkerframework", "checker-qual")
+    }
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.material)
     implementation(libs.nier.visualizer) {

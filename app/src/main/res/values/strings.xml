@@ -53,7 +53,7 @@
         <item quantity="one">%d minute</item>
         <item quantity="other">%d minutes</item>
     </plurals>
-    <string name="tracks_info">%1$s, %2$s</string>
+    <string name="tracks_info" translatable="false">%1$s, %2$s</string>
 
     <!-- Artist fragment -->
     <string name="artist_albums_header">Albums</string>
@@ -70,7 +70,6 @@
     <string name="open_genre">Open genre</string>
 
     <!-- Playlist fragment -->
-    <string name="playlist_tracks_info">%1$d tracks, %2$d minutes</string>
     <string name="rename_playlist">Rename playlist</string>
     <string name="rename_playlist_positive">Rename</string>
     <string name="delete_playlist">Delete playlist</string>
@@ -139,6 +138,20 @@
     <string name="argument_validation_error_message">Error while parsing the following arguments:\n%1$s</string>
     <string name="argument_validation_error_item">%1$s: %2$s</string>
 
+    <!-- Settings title -->
+    <string name="title_activity_settings">Settings</string>
+
+    <!-- Preference titles -->
+    <string name="general_header">General</string>
+
+    <!-- General preferences -->
+    <string name="enable_offload">Enable offload</string>
+    <string name="enable_offload_summary">Use the offload audio path for audio playback. Disabling this may increase power usage but can be useful if you experience issues with audio playback or post processing</string>
+    <string name="stop_playback_on_task_removed">Stop playback on app\'s removal from recents</string>
+    <string name="stop_playback_on_task_removed_summary">Stop playback when the app is cleared from recents</string>
+    <string name="skip_silence">Skip silence</string>
+    <string name="skip_silence_summary">Skip silence when playing audio</string>
+
     <!-- Now playing widget -->
     <string name="now_playing_widget_description">Now playing</string>
     <string name="now_playing_widget_dummy_title">Title</string>
@@ -156,4 +169,14 @@
 
     <!-- Queue fragment -->
     <string name="queue">Queue</string>
+
+    <!-- Sorting strategies -->
+    <string name="sort_by_creation_date">Created at</string>
+    <string name="sort_by_last_modified">Last modified</string>
+    <string name="sort_by_last_activity">Last activity</string>
+    <string name="sort_by_name">Name</string>
+    <string name="sort_by_play_count">Play count</string>
+    <string name="sort_by_release_date">Release date</string>
+    <string name="sort_by_title">Title</string>
+    <string name="sort_by_unknown">Unknown</string>
 </resources>

@@ -5,6 +5,7 @@
 
 package org.lineageos.twelve.fragments
 
+import android.content.Intent
 import android.os.Bundle
 import android.view.View
 import androidx.core.view.ViewCompat
@@ -24,6 +25,7 @@ import com.google.android.material.navigation.NavigationBarView
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.lineageos.twelve.R
+import org.lineageos.twelve.SettingsActivity
 import org.lineageos.twelve.ext.getViewProperty
 import org.lineageos.twelve.ext.isLandscape
 import org.lineageos.twelve.ext.updatePadding
@@ -44,6 +46,7 @@ class MainFragment : Fragment(R.layout.fragment_main) {
     private val navigationBarView by getViewProperty<NavigationBarView>(R.id.navigationBarView)
     private val nowPlayingBar by getViewProperty<NowPlayingBar>(R.id.nowPlayingBar)
     private val providerMaterialButton by getViewProperty<MaterialButton>(R.id.providerMaterialButton)
+    private val settingsMaterialButton by getViewProperty<MaterialButton>(R.id.settingsMaterialButton)
     private val toolbar by getViewProperty<MaterialToolbar>(R.id.toolbar)
     private val viewPager2 by getViewProperty<ViewPager2>(R.id.viewPager2)
 
@@ -110,6 +113,11 @@ class MainFragment : Fragment(R.layout.fragment_main) {
             findNavController().navigate(
                 R.id.action_mainFragment_to_fragment_provider_selector_dialog
             )
+        }
+
+        settingsMaterialButton.setOnClickListener {
+            val intent = Intent(context, SettingsActivity::class.java)
+            startActivity(intent)
         }
 
         viewPager2.isUserInputEnabled = false

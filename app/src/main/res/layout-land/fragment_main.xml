@@ -25,13 +25,22 @@
             tools:title="@string/app_name">
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/settingsMaterialButton"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end"
+                android:layout_marginEnd="16dp"
+                app:icon="@drawable/ic_settings" />
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/providerMaterialButton"
                 style="@style/Widget.Material3.Button.TextButton"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="end"
-                android:layout_marginHorizontal="16dp"
-                tools:icon="@drawable/ic_device"
+                android:layout_marginEnd="8dp"
+                tools:icon="@drawable/ic_shelves"
                 tools:text="Pixel 7 Pro" />
 
         </com.google.android.material.appbar.MaterialToolbar>
