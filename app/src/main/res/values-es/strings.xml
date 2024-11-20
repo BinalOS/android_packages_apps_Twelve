@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: 2024 The LineageOS Project
+     SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <string name="app_name">Música</string>
+    <string name="app_permissions_toast">Permisos no concedidos por el usuario.</string>
+    <string name="request_status_error_type_unknown">Desconocido</string>
+    <string name="request_status_error_type_not_found">No se ha encontrado</string>
+    <string name="main_fragment_section_activity">Actividad</string>
+    <string name="main_fragment_section_search">Búsqueda</string>
+    <string name="library_fragment_menu_albums">Álbumes</string>
+    <string name="library_fragment_menu_artists">Artistas</string>
+    <string name="create_playlist_confirm">Crear</string>
+    <string name="no_results">No hay resultados</string>
+    <string name="genre_unknown">Desconocido</string>
+    <string name="open_genre">Abrir género</string>
+    <string name="audio_float_mode">Modo flotante PCM</string>
+    <string name="genre_audios_header">Audios</string>
+    <string name="queue">Cola</string>
+</resources>

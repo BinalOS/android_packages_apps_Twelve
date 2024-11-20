@@ -24,7 +24,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.ui.setupWithNavController
 import androidx.recyclerview.widget.RecyclerView
-import coil3.load
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -36,6 +35,7 @@ import org.lineageos.twelve.R
 import org.lineageos.twelve.datasources.MediaError
 import org.lineageos.twelve.ext.getParcelable
 import org.lineageos.twelve.ext.getViewProperty
+import org.lineageos.twelve.ext.loadThumbnail
 import org.lineageos.twelve.ext.setProgressCompat
 import org.lineageos.twelve.ext.updateMargin
 import org.lineageos.twelve.ext.updatePadding
@@ -272,9 +272,15 @@ class AlbumFragment : Fragment(R.layout.fragment_album) {
                             albumTitleTextView.text = album.title
 
                             album.thumbnail?.uri?.also { uri ->
-                                thumbnailImageView.load(uri)
+                                thumbnailImageView.loadThumbnail(
+                                    uri,
+                                    placeholder = R.drawable.ic_album
+                                )
                             } ?: album.thumbnail?.bitmap?.also { bitmap ->
-                                thumbnailImageView.load(bitmap)
+                                thumbnailImageView.loadThumbnail(
+                                    bitmap,
+                                    placeholder = R.drawable.ic_album
+                                )
                             } ?: thumbnailImageView.setImageResource(R.drawable.ic_album)
 
                             artistNameTextView.text = album.artistName
