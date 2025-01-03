@@ -253,20 +253,22 @@ class PlaylistFragment : Fragment(R.layout.fragment_playlist) {
                     )
 
                     val totalDurationMs = audios.sumOf { audio ->
-                        audio.durationMs
+                        audio!!.durationMs
                     }
-                    val totalDurationMinutes = (totalDurationMs / 1000 / 60).toInt()
+                    val totalDurationMinutes = ((totalDurationMs?.div(1000) )?.div(60))?.toInt()
 
                     val tracksCount = resources.getQuantityString(
                         R.plurals.tracks_count,
                         audios.size,
                         audios.size
                     )
-                    val tracksDuration = resources.getQuantityString(
-                        R.plurals.tracks_duration,
-                        totalDurationMinutes,
-                        totalDurationMinutes
-                    )
+                    val tracksDuration = totalDurationMinutes?.let { it1 ->
+                        resources.getQuantityString(
+                            R.plurals.tracks_duration,
+                            it1,
+                            totalDurationMinutes
+                        )
+                    }
                     tracksInfoTextView.text = getString(
                         R.string.tracks_info,
                         tracksCount, tracksDuration
