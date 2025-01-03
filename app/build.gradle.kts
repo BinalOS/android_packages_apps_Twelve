@@ -20,7 +20,7 @@ apply {
 
 buildscript {
     repositories {
-        maven("https://raw.githubusercontent.com/lineage-next/gradle-generatebp/v1.14/.m2")
+        maven("https://raw.githubusercontent.com/lineage-next/gradle-generatebp/v1.15/.m2")
     }
 
     dependencies {
@@ -128,6 +128,7 @@ configure<GenerateBpPluginExtension> {
                 !module.group.startsWith("androidx.media3")
             }
             module.group.startsWith("org.jetbrains") -> true
+            module.group == "com.google.android.material" -> true
             module.group == "com.google.auto.value" -> true
             module.group == "com.google.code.findbugs" -> true
             module.group == "com.google.errorprone" -> true

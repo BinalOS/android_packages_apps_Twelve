@@ -24,10 +24,9 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.ui.setupWithNavController
 import androidx.recyclerview.widget.RecyclerView
-import coil3.load
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.card.MaterialCardView
-import com.google.android.material.floatingactionbutton.FloatingActionButton
+import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.collectLatest
@@ -36,6 +35,8 @@ import org.lineageos.twelve.R
 import org.lineageos.twelve.datasources.MediaError
 import org.lineageos.twelve.ext.getParcelable
 import org.lineageos.twelve.ext.getViewProperty
+import org.lineageos.twelve.ext.loadThumbnail
+import org.lineageos.twelve.ext.navigateSafe
 import org.lineageos.twelve.ext.setProgressCompat
 import org.lineageos.twelve.ext.updateMargin
 import org.lineageos.twelve.ext.updatePadding
@@ -63,7 +64,9 @@ class AlbumFragment : Fragment(R.layout.fragment_album) {
     private val infoNestedScrollView by getViewProperty<NestedScrollView?>(R.id.infoNestedScrollView)
     private val linearProgressIndicator by getViewProperty<LinearProgressIndicator>(R.id.linearProgressIndicator)
     private val noElementsNestedScrollView by getViewProperty<NestedScrollView>(R.id.noElementsNestedScrollView)
-    private val playAllFloatingActionButton by getViewProperty<FloatingActionButton>(R.id.playAllFloatingActionButton)
+    private val playAllExtendedFloatingActionButton by getViewProperty<ExtendedFloatingActionButton>(
+        R.id.playAllExtendedFloatingActionButton
+    )
     private val recyclerView by getViewProperty<RecyclerView>(R.id.recyclerView)
     private val thumbnailImageView by getViewProperty<ImageView>(R.id.thumbnailImageView)
     private val toolbar by getViewProperty<MaterialToolbar>(R.id.toolbar)
@@ -87,7 +90,7 @@ class AlbumFragment : Fragment(R.layout.fragment_album) {
                         is AlbumViewModel.AlbumContent.AudioItem -> {
                             viewModel.playAlbum(item.audio)
 
-                            findNavController().navigate(
+                            findNavController().navigateSafe(
                                 R.id.action_albumFragment_to_fragment_now_playing
                             )
                         }
@@ -99,7 +102,7 @@ class AlbumFragment : Fragment(R.layout.fragment_album) {
                 view.setOnLongClickListener {
                     when (val item = item) {
                         is AlbumViewModel.AlbumContent.AudioItem -> {
-                            findNavController().navigate(
+                            findNavController().navigateSafe(
                                 R.id.action_albumFragment_to_fragment_audio_bottom_sheet_dialog,
                                 AudioBottomSheetDialogFragment.createBundle(
                                     item.audio.uri,
@@ -144,7 +147,9 @@ class AlbumFragment : Fragment(R.layout.fragment_album) {
                         }
 
                         view.headlineText = item.audio.title
-                        view.supportingText = item.audio.artistName
+                        item.audio.artistName?.also {
+                            view.supportingText = it
+                        } ?: view.setSupportingText(R.string.artist_unknown)
                         view.trailingSupportingText = TimestampFormatter.formatTimestampMillis(
                             item.audio.durationMs
                         )
@@ -216,7 +221,9 @@ class AlbumFragment : Fragment(R.layout.fragment_album) {
             windowInsets
         }
 
-        ViewCompat.setOnApplyWindowInsetsListener(playAllFloatingActionButton) { v, windowInsets ->
+        ViewCompat.setOnApplyWindowInsetsListener(
+            playAllExtendedFloatingActionButton
+        ) { v, windowInsets ->
             val insets = windowInsets.getInsets(WindowInsetsCompat.Type.systemBars())
 
             v.updateMargin(
@@ -231,10 +238,10 @@ class AlbumFragment : Fragment(R.layout.fragment_album) {
 
         recyclerView.adapter = adapter
 
-        playAllFloatingActionButton.setOnClickListener {
+        playAllExtendedFloatingActionButton.setOnClickListener {
             viewModel.playAlbum()
 
-            findNavController().navigate(R.id.action_albumFragment_to_fragment_now_playing)
+            findNavController().navigateSafe(R.id.action_albumFragment_to_fragment_now_playing)
         }
 
         viewModel.loadAlbum(albumUri)
@@ -268,18 +275,24 @@ class AlbumFragment : Fragment(R.layout.fragment_album) {
                         is RequestStatus.Success -> {
                             val (album, audios) = it.data
 
-                            toolbar.title = album.title
-                            albumTitleTextView.text = album.title
+                            album.title?.also { albumTitle ->
+                                toolbar.title = albumTitle
+                                albumTitleTextView.text = albumTitle
+                            } ?: run {
+                                toolbar.setTitle(R.string.album_unknown)
+                                albumTitleTextView.setText(R.string.album_unknown)
+                            }
 
-                            album.thumbnail?.uri?.also { uri ->
-                                thumbnailImageView.load(uri)
-                            } ?: album.thumbnail?.bitmap?.also { bitmap ->
-                                thumbnailImageView.load(bitmap)
-                            } ?: thumbnailImageView.setImageResource(R.drawable.ic_album)
+                            thumbnailImageView.loadThumbnail(
+                                album.thumbnail,
+                                placeholder = R.drawable.ic_album
+                            )
 
-                            artistNameTextView.text = album.artistName
+                            album.artistName?.also { artistName ->
+                                artistNameTextView.text = artistName
+                            } ?: artistNameTextView.setText(R.string.artist_unknown)
                             artistNameTextView.setOnClickListener {
-                                findNavController().navigate(
+                                findNavController().navigateSafe(
                                     R.id.action_albumFragment_to_fragment_artist,
                                     ArtistFragment.createBundle(album.artistUri)
                                 )
@@ -287,7 +300,7 @@ class AlbumFragment : Fragment(R.layout.fragment_album) {
 
                             album.year?.also { year ->
                                 yearTextView.isVisible = true
-                                yearTextView.text = year.toString()
+                                yearTextView.text = getString(R.string.year_format, year)
                             } ?: run {
                                 yearTextView.isVisible = false
                             }
@@ -295,7 +308,7 @@ class AlbumFragment : Fragment(R.layout.fragment_album) {
                             val totalDurationMs = audios.sumOf { audio ->
                                 audio.durationMs
                             }
-                            val totalDurationMinutes = totalDurationMs / 1000 / 60
+                            val totalDurationMinutes = (totalDurationMs / 1000 / 60).toInt()
 
                             val tracksCount = resources.getQuantityString(
                                 R.plurals.tracks_count,
@@ -336,8 +349,8 @@ class AlbumFragment : Fragment(R.layout.fragment_album) {
                     recyclerView.isVisible = !isEmpty
                     noElementsNestedScrollView.isVisible = isEmpty
                     when (isEmpty) {
-                        true -> playAllFloatingActionButton.hide()
-                        false -> playAllFloatingActionButton.show()
+                        true -> playAllExtendedFloatingActionButton.hide()
+                        false -> playAllExtendedFloatingActionButton.show()
                     }
                 }
             }

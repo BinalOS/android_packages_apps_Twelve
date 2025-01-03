@@ -9,6 +9,7 @@ import android.content.Context
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.provider.MediaStore
 import androidx.core.os.bundleOf
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -22,7 +23,9 @@ import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
+import okhttp3.Cache
 import org.lineageos.twelve.database.TwelveDatabase
+import org.lineageos.twelve.datasources.JellyfinDataSource
 import org.lineageos.twelve.datasources.LocalDataSource
 import org.lineageos.twelve.datasources.MediaDataSource
 import org.lineageos.twelve.datasources.MediaError
@@ -43,14 +46,23 @@ import org.lineageos.twelve.models.SortingStrategy
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class MediaRepository(
-    context: Context,
+    private val context: Context,
     scope: CoroutineScope,
     private val database: TwelveDatabase,
 ) {
     /**
+     * Content resolver.
+     */
+    private val contentResolver = context.contentResolver
+
+    /**
      * Local data source singleton.
      */
-    private val localDataSource = LocalDataSource(context, database)
+    private val localDataSource = LocalDataSource(
+        contentResolver,
+        MediaStore.VOLUME_EXTERNAL,
+        database
+    )
 
     /**
      * Local provider singleton.
@@ -60,6 +72,12 @@ class MediaRepository(
         LOCAL_PROVIDER_ID,
         Build.MODEL,
     )
+
+    /**
+     * HTTP cache
+     * 50 MB should be enough for most cases.
+     */
+    private val cache = Cache(context.cacheDir, 50 * 1024 * 1024)
 
     /**
      * All the providers. This is our single point of truth for the providers.
@@ -80,7 +98,26 @@ class MediaRepository(
                     ProviderType.SUBSONIC,
                     it.id,
                     it.name,
-                ) to SubsonicDataSource(arguments)
+                ) to SubsonicDataSource(arguments, cache)
+            }
+        },
+        database.getJellyfinProviderDao().getAll().mapLatest { jellyfinProviders ->
+            jellyfinProviders.map {
+                val arguments = bundleOf(
+                    JellyfinDataSource.ARG_SERVER.key to it.url,
+                    JellyfinDataSource.ARG_USERNAME.key to it.username,
+                    JellyfinDataSource.ARG_PASSWORD.key to it.password,
+                )
+
+                Provider(
+                    ProviderType.JELLYFIN,
+                    it.id,
+                    it.name,
+                ) to JellyfinDataSource(context, arguments, it.deviceIdentifier, {
+                    database.getJellyfinProviderDao().getToken(it.id)
+                }, { token ->
+                    database.getJellyfinProviderDao().updateToken(it.id, token)
+                }, cache)
             }
         }
     ) { providers -> providers.toList().flatten() }
@@ -209,6 +246,18 @@ class MediaRepository(
                 )
             }
         }
+
+        ProviderType.JELLYFIN -> database.getJellyfinProviderDao().getById(
+            providerTypeId
+        ).mapLatest { jellyfinProvider ->
+            jellyfinProvider?.let {
+                bundleOf(
+                    JellyfinDataSource.ARG_SERVER.key to it.url,
+                    JellyfinDataSource.ARG_USERNAME.key to it.username,
+                    JellyfinDataSource.ARG_PASSWORD.key to it.password,
+                )
+            }
+        }
     }
 
     /**
@@ -235,6 +284,18 @@ class MediaRepository(
 
             val typeId = database.getSubsonicProviderDao().create(
                 name, server, username, password, useLegacyAuthentication
+            )
+
+            providerType to typeId
+        }
+
+        ProviderType.JELLYFIN -> {
+            val server = arguments.requireArgument(JellyfinDataSource.ARG_SERVER)
+            val username = arguments.requireArgument(JellyfinDataSource.ARG_USERNAME)
+            val password = arguments.requireArgument(JellyfinDataSource.ARG_PASSWORD)
+
+            val typeId = database.getJellyfinProviderDao().create(
+                name, server, username, password
             )
 
             providerType to typeId
@@ -275,6 +336,20 @@ class MediaRepository(
                     useLegacyAuthentication,
                 )
             }
+
+            ProviderType.JELLYFIN -> {
+                val server = arguments.requireArgument(JellyfinDataSource.ARG_SERVER)
+                val username = arguments.requireArgument(JellyfinDataSource.ARG_USERNAME)
+                val password = arguments.requireArgument(JellyfinDataSource.ARG_PASSWORD)
+
+                database.getJellyfinProviderDao().update(
+                    providerTypeId,
+                    name,
+                    server,
+                    username,
+                    password
+                )
+            }
         }
     }
 
@@ -289,6 +364,8 @@ class MediaRepository(
             ProviderType.LOCAL -> throw Exception("Cannot delete local providers")
 
             ProviderType.SUBSONIC -> database.getSubsonicProviderDao().delete(providerTypeId)
+
+            ProviderType.JELLYFIN -> database.getJellyfinProviderDao().delete(providerTypeId)
         }
     }
 
@@ -308,6 +385,11 @@ class MediaRepository(
     suspend fun mediaTypeOf(mediaItemUri: Uri) = withMediaItemsDataSource(mediaItemUri) {
         mediaTypeOf(mediaItemUri)
     }
+
+    /**
+     * @see MediaDataSource.activity
+     */
+    fun activity() = navigationDataSource.flatMapLatest { it.activity() }
 
     /**
      * @see MediaDataSource.albums

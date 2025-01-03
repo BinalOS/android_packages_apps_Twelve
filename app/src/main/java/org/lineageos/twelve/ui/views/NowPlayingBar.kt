@@ -6,7 +6,6 @@
 package org.lineageos.twelve.ui.views
 
 import android.content.Context
-import android.graphics.ImageDecoder
 import android.util.AttributeSet
 import android.widget.FrameLayout
 import android.widget.ImageButton
@@ -14,13 +13,13 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.isVisible
 import androidx.core.view.updateLayoutParams
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.progressindicator.CircularProgressIndicator
 import org.lineageos.twelve.R
+import org.lineageos.twelve.ext.loadThumbnail
 import org.lineageos.twelve.ext.slideDown
 import org.lineageos.twelve.ext.slideUp
 import org.lineageos.twelve.models.Thumbnail
@@ -103,41 +102,28 @@ class NowPlayingBar @JvmOverloads constructor(
     }
 
     fun updateMediaMetadata(mediaMetadata: MediaMetadata) {
-        mediaMetadata.title?.also {
-            titleTextView.text = it
-            titleTextView.isVisible = true
-        } ?: run {
-            titleTextView.isVisible = false
+        val audioTitle = mediaMetadata.displayTitle
+            ?: mediaMetadata.title
+            ?: context.getString(R.string.unknown)
+        if (titleTextView.text != audioTitle) {
+            titleTextView.text = audioTitle
         }
 
-        mediaMetadata.artist?.also {
-            artistNameTextView.text = it
-            artistNameTextView.isVisible = true
-        } ?: run {
-            artistNameTextView.isVisible = false
+        val artistName = mediaMetadata.artist
+            ?: context.getString(R.string.artist_unknown)
+        if (artistNameTextView.text != artistName) {
+            artistNameTextView.text = artistName
         }
 
-        mediaMetadata.albumTitle?.also {
-            albumTitleTextView.text = it
-            albumTitleTextView.isVisible = true
-        } ?: run {
-            albumTitleTextView.isVisible = false
+        val albumTitle = mediaMetadata.albumTitle
+            ?: context.getString(R.string.album_unknown)
+        if (albumTitleTextView.text != albumTitle) {
+            albumTitleTextView.text = albumTitle
         }
     }
 
     fun updateMediaArtwork(artwork: Thumbnail?) {
-        artwork?.bitmap?.also { bitmap ->
-            thumbnailImageView.setImageBitmap(bitmap)
-        } ?: artwork?.uri?.also { artworkUri ->
-            ImageDecoder.createSource(
-                context.contentResolver,
-                artworkUri
-            ).let { source ->
-                ImageDecoder.decodeBitmap(source)
-            }.also { bitmap ->
-                thumbnailImageView.setImageBitmap(bitmap)
-            }
-        } ?: thumbnailImageView.setImageResource(R.drawable.ic_music_note)
+        thumbnailImageView.loadThumbnail(artwork, placeholder = R.drawable.ic_music_note)
     }
 
     fun updateDurationCurrentPositionMs(durationMs: Long?, currentPositionMs: Long?) {

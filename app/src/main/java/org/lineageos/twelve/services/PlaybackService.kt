@@ -100,13 +100,14 @@ class PlaybackService : MediaLibraryService(), Player.Listener, LifecycleOwner {
             session: MediaSession,
             controller: MediaSession.ControllerInfo
         ): MediaSession.ConnectionResult {
-            val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
-                .apply {
-                    for (command in CustomCommand.entries) {
-                        add(command.sessionCommand)
+            val sessionCommands =
+                MediaSession.ConnectionResult.DEFAULT_SESSION_AND_LIBRARY_COMMANDS.buildUpon()
+                    .apply {
+                        for (command in CustomCommand.entries) {
+                            add(command.sessionCommand)
+                        }
                     }
-                }
-                .build()
+                    .build()
 
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                 .setAvailableSessionCommands(sessionCommands)
@@ -308,11 +309,9 @@ class PlaybackService : MediaLibraryService(), Player.Listener, LifecycleOwner {
         return super.onBind(intent)
     }
 
-    @Suppress("Deprecation")
-    @Deprecated("Deprecated in Java")
-    override fun onStart(intent: Intent?, startId: Int) {
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         dispatcher.onServicePreSuperOnStart()
-        super.onStart(intent, startId)
+        return super.onStartCommand(intent, flags, startId)
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {

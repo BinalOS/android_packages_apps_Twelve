@@ -25,7 +25,6 @@ import androidx.lifecycle.repeatOnLifecycle
 import androidx.navigation.fragment.findNavController
 import androidx.navigation.ui.setupWithNavController
 import androidx.recyclerview.widget.RecyclerView
-import coil3.load
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import kotlinx.coroutines.flow.collectLatest
@@ -34,6 +33,8 @@ import org.lineageos.twelve.R
 import org.lineageos.twelve.datasources.MediaError
 import org.lineageos.twelve.ext.getParcelable
 import org.lineageos.twelve.ext.getViewProperty
+import org.lineageos.twelve.ext.loadThumbnail
+import org.lineageos.twelve.ext.navigateSafe
 import org.lineageos.twelve.ext.setProgressCompat
 import org.lineageos.twelve.ext.updatePadding
 import org.lineageos.twelve.models.Album
@@ -77,7 +78,7 @@ class ArtistFragment : Fragment(R.layout.fragment_artist) {
             override fun ViewHolder.onPrepareView() {
                 view.setOnClickListener {
                     item?.let {
-                        findNavController().navigate(
+                        findNavController().navigateSafe(
                             R.id.action_artistFragment_to_fragment_album,
                             AlbumFragment.createBundle(it.uri)
                         )
@@ -86,13 +87,11 @@ class ArtistFragment : Fragment(R.layout.fragment_artist) {
             }
 
             override fun ViewHolder.onBindView(item: Album) {
-                item.thumbnail?.uri?.also { uri ->
-                    view.loadThumbnailImage(uri)
-                } ?: item.thumbnail?.bitmap?.also { bitmap ->
-                    view.loadThumbnailImage(bitmap)
-                } ?: view.setThumbnailImage(R.drawable.ic_album)
+                view.loadThumbnailImage(item.thumbnail, R.drawable.ic_album)
 
-                view.headlineText = item.title
+                item.title?.also {
+                    view.headlineText = it
+                } ?: view.setHeadlineText(R.string.album_unknown)
                 view.headlineMaxLines = 2
                 view.supportingText = item.year?.toString()
             }
@@ -215,14 +214,18 @@ class ArtistFragment : Fragment(R.layout.fragment_artist) {
                 is RequestStatus.Success -> {
                     val (artist, artistWorks) = it.data
 
-                    toolbar.title = artist.name
-                    artistNameTextView.text = artist.name
+                    artist.name?.also { artistName ->
+                        toolbar.title = artistName
+                        artistNameTextView.text = artistName
+                    } ?: run {
+                        toolbar.setTitle(R.string.artist_unknown)
+                        artistNameTextView.setText(R.string.artist_unknown)
+                    }
 
-                    artist.thumbnail?.uri?.also { uri ->
-                        thumbnailImageView.load(uri)
-                    } ?: artist.thumbnail?.bitmap?.also { bitmap ->
-                        thumbnailImageView.load(bitmap)
-                    } ?: thumbnailImageView.setImageResource(R.drawable.ic_person)
+                    thumbnailImageView.loadThumbnail(
+                        artist.thumbnail,
+                        placeholder = R.drawable.ic_person
+                    )
 
                     albumsAdapter.submitList(artistWorks.albums)
                     appearsInAlbumAdapter.submitList(artistWorks.appearsInAlbum)

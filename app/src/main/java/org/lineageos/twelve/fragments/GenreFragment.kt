@@ -33,6 +33,8 @@ import org.lineageos.twelve.R
 import org.lineageos.twelve.datasources.MediaError
 import org.lineageos.twelve.ext.getParcelable
 import org.lineageos.twelve.ext.getViewProperty
+import org.lineageos.twelve.ext.loadThumbnail
+import org.lineageos.twelve.ext.navigateSafe
 import org.lineageos.twelve.ext.setProgressCompat
 import org.lineageos.twelve.ext.updatePadding
 import org.lineageos.twelve.models.Album
@@ -79,7 +81,7 @@ class GenreFragment : Fragment(R.layout.fragment_genre) {
 
                 view.setOnClickListener {
                     item?.let {
-                        findNavController().navigate(
+                        findNavController().navigateSafe(
                             R.id.action_genreFragment_to_fragment_album,
                             AlbumFragment.createBundle(it.uri)
                         )
@@ -88,14 +90,14 @@ class GenreFragment : Fragment(R.layout.fragment_genre) {
             }
 
             override fun ViewHolder.onBindView(item: Album) {
-                item.thumbnail?.uri?.also { uri ->
-                    view.loadThumbnailImage(uri)
-                } ?: item.thumbnail?.bitmap?.also { bitmap ->
-                    view.loadThumbnailImage(bitmap)
-                } ?: view.setThumbnailImage(R.drawable.ic_album)
+                view.loadThumbnailImage(item.thumbnail, R.drawable.ic_album)
 
-                view.headlineText = item.title
-                view.supportingText = item.artistName
+                item.title?.also {
+                    view.headlineText = it
+                } ?: view.setHeadlineText(R.string.album_unknown)
+                item.artistName?.also {
+                    view.supportingText = it
+                } ?: view.setSupportingText(R.string.artist_unknown)
                 view.tertiaryText = item.year?.toString()
             }
         }
@@ -109,7 +111,7 @@ class GenreFragment : Fragment(R.layout.fragment_genre) {
                 view.setThumbnailImage(R.drawable.ic_playlist_play)
                 view.setOnClickListener {
                     item?.let {
-                        findNavController().navigate(
+                        findNavController().navigateSafe(
                             R.id.action_genreFragment_to_fragment_playlist,
                             PlaylistFragment.createBundle(it.uri)
                         )
@@ -134,7 +136,7 @@ class GenreFragment : Fragment(R.layout.fragment_genre) {
                 view.setOnClickListener {
                     item?.let {
                         viewModel.playAudio(currentList, bindingAdapterPosition)
-                        findNavController().navigate(
+                        findNavController().navigateSafe(
                             R.id.action_genreFragment_to_fragment_now_playing
                         )
                     }
@@ -142,7 +144,7 @@ class GenreFragment : Fragment(R.layout.fragment_genre) {
 
                 view.setOnLongClickListener {
                     item?.let {
-                        findNavController().navigate(
+                        findNavController().navigateSafe(
                             R.id.action_genreFragment_to_fragment_audio_bottom_sheet_dialog,
                             AudioBottomSheetDialogFragment.createBundle(
                                 it.uri,
@@ -157,8 +159,12 @@ class GenreFragment : Fragment(R.layout.fragment_genre) {
 
             override fun ViewHolder.onBindView(item: Audio) {
                 view.headlineText = item.title
-                view.supportingText = item.artistName
-                view.tertiaryText = item.albumTitle
+                item.artistName?.also {
+                    view.supportingText = it
+                } ?: view.setSupportingText(R.string.artist_unknown)
+                item.albumTitle?.also {
+                    view.tertiaryText = it
+                } ?: view.setTertiaryText(R.string.album_unknown)
             }
         }
     }
@@ -260,12 +266,18 @@ class GenreFragment : Fragment(R.layout.fragment_genre) {
                 is RequestStatus.Success -> {
                     val (genre, genreContent) = it.data
 
-                    (genre.name ?: getString(R.string.genre_unknown)).let { genreName ->
+                    genre.name?.also { genreName ->
                         toolbar.title = genreName
                         genreNameTextView.text = genreName
+                    } ?: run {
+                        toolbar.setTitle(R.string.genre_unknown)
+                        genreNameTextView.setText(R.string.genre_unknown)
                     }
 
-                    thumbnailImageView.setImageResource(R.drawable.ic_genres)
+                    thumbnailImageView.loadThumbnail(
+                        genre.thumbnail,
+                        placeholder = R.drawable.ic_genres
+                    )
 
                     appearsInAlbumsAdapter.submitList(genreContent.appearsInAlbums)
                     appearsInPlaylistsAdapter.submitList(genreContent.appearsInPlaylists)

@@ -41,7 +41,6 @@ import org.lineageos.twelve.ext.playbackStateFlow
 import org.lineageos.twelve.ext.repeatModeFlow
 import org.lineageos.twelve.ext.shuffleModeFlow
 import org.lineageos.twelve.ext.tracksFlow
-import org.lineageos.twelve.ext.typedRepeatMode
 import org.lineageos.twelve.models.PlaybackState
 import org.lineageos.twelve.models.RepeatMode
 import org.lineageos.twelve.models.RequestStatus
@@ -313,15 +312,11 @@ open class NowPlayingViewModel(application: Application) : TwelveViewModel(appli
     }
 
     fun toggleShuffleMode() {
-        mediaController.value?.apply {
-            shuffleModeEnabled = shuffleModeEnabled.not()
-        }
+        shuffleModeEnabled = shuffleModeEnabled.not()
     }
 
     fun toggleRepeatMode() {
-        mediaController.value?.apply {
-            typedRepeatMode = typedRepeatMode.next()
-        }
+        typedRepeatMode = typedRepeatMode.next()
     }
 
     fun shufflePlaybackSpeed() {
@@ -336,9 +331,5 @@ open class NowPlayingViewModel(application: Application) : TwelveViewModel(appli
 
     fun nextVisualizerType() {
         _currentVisualizerType.value = _currentVisualizerType.value.next()
-    }
-
-    fun disableVisualizer() {
-        _currentVisualizerType.value = VisualizerType.NONE
     }
 }

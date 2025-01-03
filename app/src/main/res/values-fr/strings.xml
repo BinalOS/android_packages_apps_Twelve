@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: 2024 The LineageOS Project
+     SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <string name="app_name">Musique</string>
+    <string name="request_status_error_type_unknown">Inconnu</string>
+    <string name="request_status_error_type_authentication_required">Authentification requise</string>
+    <string name="main_fragment_section_activity">Activité</string>
+    <string name="main_fragment_section_library">Bibliothèque</string>
+    <string name="library_fragment_menu_albums">Albums</string>
+    <string name="library_fragment_menu_artists">Artistes</string>
+    <string name="create_playlist_confirm">Créer</string>
+    <string name="no_albums">Aucun album</string>
+    <string name="no_artists">Aucun artiste</string>
+    <string name="no_audios">Aucun audio</string>
+    <string name="no_results">Aucun résultat</string>
+    <string name="unknown">Inconnu</string>
+    <string name="album_unknown">Album inconnu</string>
+    <string name="artist_unknown">Artiste inconnu</string>
+    <string name="genre_unknown">Style inconnu</string>
+    <plurals name="tracks_count">
+        <item quantity="one">%d piste</item>
+        <item quantity="other">%d pistes</item>
+    </plurals>
+    <plurals name="tracks_duration">
+        <item quantity="one">%d minute</item>
+        <item quantity="other">%d minutes</item>
+    </plurals>
+    <string name="artist_albums_header">Albums</string>
+    <string name="audio_play_next">Lire le suivant</string>
+    <string name="open_album">Ouvrir l\'album</string>
+    <string name="open_artist">Ouvrir l\'artiste</string>
+    <string name="rename_playlist_positive">Renommer</string>
+    <string name="delete_playlist_positive">Supprimer</string>
+    <string name="playback_speed_format">%1$s×</string>
+    <string name="audio_source">Source</string>
+    <string name="audio_output">Sortie</string>
+    <string name="audio_file_type">Type de fichier</string>
+    <string name="audio_file_type_unknown">Inconnu</string>
+    <string name="audio_sample_rate">Fréquence d’échantillonnage</string>
+    <string name="audio_sample_rate_format">%1$s kHz</string>
+    <string name="audio_sample_rate_unknown">Inconnue</string>
+    <string name="audio_channel_count_unknown">Inconnu</string>
+    <string name="audio_encoding">Encodage</string>
+    <string name="audio_encoding_unknown">Inconnu</string>
+    <string name="audio_float_mode_unknown">Inconnu</string>
+    <string name="audio_float_mode_enabled">Activé</string>
+    <string name="audio_float_mode_disabled">Désactivé</string>
+    <string name="audio_output_mode_unknown">Inconnu</string>
+    <string name="audio_bitrate_unknown">Inconnu</string>
+    <string name="audio_bitrate_format">%1$s kbps</string>
+    <string name="provider_argument_server">Serveur</string>
+    <string name="provider_argument_username">Nom d’utilisateur</string>
+    <string name="provider_argument_password">Mot de passe</string>
+    <string name="provider_argument_use_legacy_authentication">Utiliser l\'ancienne authentification</string>
+    <string name="provider_argument_validation_error_required">Une valeur est requise</string>
+    <string name="providers">Fournisseurs</string>
+    <string name="add_provider_action">Ajouter</string>
+    <string name="add_provider">Ajouter un fournisseur</string>
+    <string name="save_provider_action">Enregistrer</string>
+    <string name="delete_provider_action">Supprimer</string>
+    <string name="provider_name">Nom</string>
+    <string name="provider_type">Type de fournisseur</string>
+    <string name="provider_type_error">Sélectionnez un type de fournisseur</string>
+    <string name="argument_validation_error_title">Erreur</string>
+    <string name="argument_validation_error_item">%1$s : %2$s</string>
+    <string name="title_activity_settings">Paramètres</string>
+    <string name="now_playing_widget_dummy_title">Titre</string>
+    <string name="now_playing_widget_dummy_artist">Artiste</string>
+    <string name="now_playing_widget_dummy_album">Album</string>
+    <string name="album_disc_header">Disque %1$d</string>
+    <string name="sort_by_title">Titre</string>
+    <string name="sort_by_unknown">Inconnu</string>
+</resources>

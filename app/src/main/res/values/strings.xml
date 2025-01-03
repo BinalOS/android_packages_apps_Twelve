@@ -21,6 +21,9 @@
     <string name="main_fragment_section_search">Search</string>
     <string name="main_fragment_section_library">Library</string>
 
+    <!-- Search fragment -->
+    <string name="search_hint">Search…</string>
+
     <!-- Library fragment menus -->
     <string name="library_fragment_menu_albums">Albums</string>
     <string name="library_fragment_menu_artists">Artists</string>
@@ -34,17 +37,23 @@
     <string name="create_playlist_confirm">Create</string>
 
     <!-- No elements -->
+    <string name="no_activity">No activity</string>
     <string name="no_albums">No albums</string>
     <string name="no_artists">No artists</string>
     <string name="no_genres">No genres</string>
     <string name="no_playlists">No playlists</string>
     <string name="no_audios">No audios</string>
     <string name="no_results">No results</string>
+    <string name="shrug" translatable="false">¯\\_(ツ)_/¯</string>
 
-    <!-- Genres -->
-    <string name="genre_unknown">Unknown</string>
+    <!-- Unknown items -->
+    <string name="unknown">Unknown</string>
+    <string name="album_unknown">Unknown album</string>
+    <string name="artist_unknown">Unknown artist</string>
+    <string name="genre_unknown">Unknown genre</string>
 
     <!-- Tracks information -->
+    <string name="year_format" translatable="false">%1$d</string>
     <plurals name="tracks_count">
         <item quantity="one">%d track</item>
         <item quantity="other">%d tracks</item>
@@ -77,7 +86,10 @@
     <string name="delete_playlist_positive">Delete</string>
 
     <!-- Now playing fragment -->
+    <string name="audio_effects">Audio effects</string>
     <string name="playback_speed_format">%1$s×</string>
+    <string name="playback_speed">Playback speed</string>
+    <string name="visualizer">Visualizer</string>
 
     <!-- Now playing stats dialog fragment -->
     <string name="audio_source">Source</string>
@@ -108,7 +120,8 @@
 
     <!-- Provider types -->
     <string name="provider_type_local">Local</string>
-    <string name="provider_type_subsonic" translatable="false">Subsonic / OpenSubsonic</string>
+    <string name="provider_type_subsonic" translatable="false">Subsonic / OpenSubsonic / Navidrome</string>
+    <string name="provider_type_jellyfin" translatable="false">Jellyfin</string>
 
     <!-- Provider arguments -->
     <string name="provider_argument_server">Server</string>
@@ -179,4 +192,16 @@
     <string name="sort_by_release_date">Release date</string>
     <string name="sort_by_title">Title</string>
     <string name="sort_by_unknown">Unknown</string>
+
+    <!-- Activities -->
+    <string name="activity_most_played_albums">Most played albums</string>
+    <string name="activity_random_albums">Random albums</string>
+    <string name="activity_random_songs">Random songs</string>
+
+    <!-- Content descriptions -->
+    <string name="content_description_play_pause">Play/pause</string>
+    <string name="content_description_thumbnail">Thumbnail</string>
+
+    <!-- Play all -->
+    <string name="play_all">Play all</string>
 </resources>

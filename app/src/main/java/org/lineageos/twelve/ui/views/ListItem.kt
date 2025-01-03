@@ -32,7 +32,7 @@ import org.lineageos.twelve.R
 class ListItem @JvmOverloads constructor(
     context: Context,
     attrs: AttributeSet? = null,
-    @AttrRes defStyleAttr: Int = 0,
+    @AttrRes defStyleAttr: Int = com.google.android.material.R.attr.materialCardViewStyle,
 ) : MaterialCardView(context, attrs, defStyleAttr) {
     private val headlineTextView by lazy { findViewById<TextView>(R.id.headlineTextView) }
     private val leadingIconImageView by lazy { findViewById<ImageView>(R.id.leadingIconImageView) }
@@ -106,6 +106,8 @@ class ListItem @JvmOverloads constructor(
     init {
         setCardBackgroundColor(Color.TRANSPARENT)
         cardElevation = 0f
+        radius = 0f
+        strokeWidth = 0
 
         inflate(context, R.layout.list_item, this)
 

@@ -12,4 +12,7 @@ import kotlinx.serialization.Serializable
 data class ArtistsID3(
     val index: List<IndexID3>,
     val ignoredArticles: String,
+
+    // Navidrome
+    val lastModified: Long? = null, // TODO
 )

@@ -7,6 +7,7 @@ package org.lineageos.twelve.datasources
 
 import android.net.Uri
 import kotlinx.coroutines.flow.Flow
+import org.lineageos.twelve.models.ActivityTab
 import org.lineageos.twelve.models.Album
 import org.lineageos.twelve.models.Artist
 import org.lineageos.twelve.models.ArtistWorks
@@ -40,6 +41,11 @@ interface MediaDataSource {
      * @return [RequestStatus.Success] if success, [RequestStatus.Error] with an error otherwise
      */
     suspend fun mediaTypeOf(mediaItemUri: Uri): MediaRequestStatus<MediaType>
+
+    /**
+     * Home page content.
+     */
+    fun activity(): Flow<MediaRequestStatus<List<ActivityTab>>>
 
     /**
      * Get all the albums. All albums must have at least one audio associated with them.
@@ -89,9 +95,8 @@ interface MediaDataSource {
 
     /**
      * Get the playlist information and all the tracks of the given playlist.
-     * If the playlist contains an audio that is unavailable, it will be mapped to null.
      */
-    fun playlist(playlistUri: Uri): Flow<MediaRequestStatus<Pair<Playlist, List<Audio?>>>>
+    fun playlist(playlistUri: Uri): Flow<MediaRequestStatus<Pair<Playlist, List<Audio>>>>
 
     /**
      * Get an audio status within all playlists.

@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.lineageos.twelve.R
 import org.lineageos.twelve.ext.getViewProperty
+import org.lineageos.twelve.ext.navigateSafe
 import org.lineageos.twelve.ext.setProgressCompat
 import org.lineageos.twelve.models.Genre
 import org.lineageos.twelve.models.RequestStatus
@@ -58,7 +59,7 @@ class GenresFragment : Fragment(R.layout.fragment_genres) {
                 view.setLeadingIconImage(R.drawable.ic_genres)
                 view.setOnClickListener {
                     item?.let {
-                        findNavController().navigate(
+                        findNavController().navigateSafe(
                             R.id.action_mainFragment_to_fragment_genre,
                             GenreFragment.createBundle(it.uri)
                         )
@@ -67,11 +68,9 @@ class GenresFragment : Fragment(R.layout.fragment_genres) {
             }
 
             override fun ViewHolder.onBindView(item: Genre) {
-                item.name?.let {
+                item.name?.also {
                     view.headlineText = it
-                } ?: run {
-                    view.headlineText = getString(R.string.genre_unknown)
-                }
+                } ?: view.setHeadlineText(R.string.unknown)
             }
         }
     }

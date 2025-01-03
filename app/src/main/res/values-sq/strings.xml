@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+     SPDX-FileCopyrightText: 2024 The LineageOS Project
+     SPDX-License-Identifier: Apache-2.0
+-->
+<resources>
+    <string name="app_name">Muzika</string>
+    <string name="app_permissions_toast">Lejet nuk janë dhënë nga përdoruesi.</string>
+    <string name="request_status_error_type_unknown">I panjohur</string>
+    <string name="request_status_error_type_not_found">Nuk u gjet</string>
+    <string name="request_status_error_type_io">I/O gabim</string>
+    <string name="request_status_error_type_authentication_required">Kërkohet autentifikim</string>
+    <string name="request_status_error_type_invalid_credentials">Kredencialet e pavlefshme</string>
+    <string name="main_fragment_section_activity">Aktiviteti</string>
+    <string name="main_fragment_section_search">Kërko</string>
+    <string name="main_fragment_section_library">Libraria</string>
+    <string name="library_fragment_menu_albums">Albumet</string>
+    <string name="library_fragment_menu_artists">Artistët</string>
+    <string name="library_fragment_menu_genres">Zhanri</string>
+    <string name="library_fragment_menu_playlists">Lista e këngëve</string>
+    <string name="create_playlist">Krijo listë të re për luajtje</string>
+    <string name="no_playlists_comma">S\'ka listë për luajtje </string>
+    <string name="create_playlist_suggestion">Krijo një të re?</string>
+    <string name="create_playlist_confirm">Krijo</string>
+    <string name="no_albums">Nuk ka albume.</string>
+    <string name="no_artists">Nuk ka artistë.</string>
+</resources>

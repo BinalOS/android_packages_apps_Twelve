@@ -8,7 +8,7 @@ package org.lineageos.twelve.models
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import org.lineageos.twelve.R
-import org.lineageos.twelve.datasources.LocalDataSource
+import org.lineageos.twelve.datasources.JellyfinDataSource
 import org.lineageos.twelve.datasources.MediaDataSource
 import org.lineageos.twelve.datasources.SubsonicDataSource
 
@@ -27,7 +27,7 @@ enum class ProviderType(
     val arguments: List<ProviderArgument<*>>,
 ) {
     /**
-     * Local provider, only one instance of [LocalDataSource] exists.
+     * Local provider.
      */
     LOCAL(
         R.string.provider_type_local,
@@ -36,9 +36,11 @@ enum class ProviderType(
     ),
 
     /**
-     * Subsonic provider.
+     * Subsonic / OpenSubsonic / Navidrome provider.
      *
-     * [Home page](https://www.subsonic.org/pages/index.jsp)
+     * @see <a href="https://www.subsonic.org/pages/index.jsp">Subsonic home page</a>
+     * @see <a href="https://opensubsonic.netlify.app">OpenSubsonic home page</a>
+     * @see <a href="https://navidrome.org">Navidrome home page</a>
      */
     SUBSONIC(
         R.string.provider_type_subsonic,
@@ -50,4 +52,19 @@ enum class ProviderType(
             SubsonicDataSource.ARG_USE_LEGACY_AUTHENTICATION,
         ),
     ),
+
+    /**
+     * Jellyfin provider.
+     *
+     * [Home page](https://jellyfin.org)
+     */
+    JELLYFIN(
+        R.string.provider_type_jellyfin,
+        R.drawable.ic_jellyfin,
+        listOf(
+            JellyfinDataSource.ARG_SERVER,
+            JellyfinDataSource.ARG_USERNAME,
+            JellyfinDataSource.ARG_PASSWORD,
+        ),
+    )
 }

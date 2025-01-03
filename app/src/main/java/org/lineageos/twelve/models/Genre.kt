@@ -8,6 +8,7 @@ package org.lineageos.twelve.models
 import android.net.Uri
 import androidx.media3.common.MediaMetadata
 import org.lineageos.twelve.ext.buildMediaItem
+import org.lineageos.twelve.ext.toByteArray
 
 /**
  * A music genre.
@@ -19,6 +20,7 @@ import org.lineageos.twelve.ext.buildMediaItem
 data class Genre(
     override val uri: Uri,
     val name: String?,
+    val thumbnail: Thumbnail? = null,
 ) : MediaItem<Genre> {
     override val mediaType = MediaType.GENRE
 
@@ -26,15 +28,19 @@ data class Genre(
         other,
         this,
         Genre::name,
+        Genre::thumbnail,
     ) == 0
 
     override fun toMedia3MediaItem() = buildMediaItem(
-        title = name ?: "Unknown",
+        title = name,
         mediaId = "$GENRE_MEDIA_ITEM_ID_PREFIX${uri}",
         isPlayable = false,
         isBrowsable = true,
         mediaType = MediaMetadata.MEDIA_TYPE_GENRE,
         sourceUri = uri,
+        artworkData = thumbnail?.bitmap?.toByteArray(),
+        artworkType = thumbnail?.type?.media3Value,
+        artworkUri = thumbnail?.uri,
     )
 
     companion object {

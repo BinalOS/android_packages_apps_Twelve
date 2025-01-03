@@ -11,6 +11,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asFlow
 import kotlinx.coroutines.flow.mapLatest
+import okhttp3.Cache
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import org.lineageos.twelve.R
 import org.lineageos.twelve.datasources.subsonic.SubsonicClient
@@ -18,12 +19,14 @@ import org.lineageos.twelve.datasources.subsonic.models.AlbumID3
 import org.lineageos.twelve.datasources.subsonic.models.ArtistID3
 import org.lineageos.twelve.datasources.subsonic.models.Child
 import org.lineageos.twelve.datasources.subsonic.models.Error
+import org.lineageos.twelve.models.ActivityTab
 import org.lineageos.twelve.models.Album
 import org.lineageos.twelve.models.Artist
 import org.lineageos.twelve.models.ArtistWorks
 import org.lineageos.twelve.models.Audio
 import org.lineageos.twelve.models.Genre
 import org.lineageos.twelve.models.GenreContent
+import org.lineageos.twelve.models.LocalizedString
 import org.lineageos.twelve.models.MediaType
 import org.lineageos.twelve.models.Playlist
 import org.lineageos.twelve.models.ProviderArgument
@@ -37,14 +40,14 @@ import org.lineageos.twelve.models.Thumbnail
  * Subsonic based data source.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-class SubsonicDataSource(arguments: Bundle) : MediaDataSource {
+class SubsonicDataSource(arguments: Bundle, cache: Cache? = null) : MediaDataSource {
     private val server = arguments.requireArgument(ARG_SERVER)
     private val username = arguments.requireArgument(ARG_USERNAME)
     private val password = arguments.requireArgument(ARG_PASSWORD)
     private val useLegacyAuthentication = arguments.requireArgument(ARG_USE_LEGACY_AUTHENTICATION)
 
     private val subsonicClient = SubsonicClient(
-        server, username, password, "Twelve", useLegacyAuthentication
+        server, username, password, "Twelve", useLegacyAuthentication, cache
     )
 
     private val dataSourceBaseUri = Uri.parse(server)
@@ -86,6 +89,59 @@ class SubsonicDataSource(arguments: Bundle) : MediaDataSource {
             RequestStatus.Success<_, MediaError>(it)
         } ?: RequestStatus.Error(MediaError.NOT_FOUND)
     }
+
+    override fun activity() = suspend {
+        val mostPlayedAlbums = subsonicClient.getAlbumList2(
+            "frequent",
+            10
+        ).toRequestStatus {
+            ActivityTab(
+                "most_played_albums",
+                LocalizedString(
+                    "Most played albums",
+                    R.string.activity_most_played_albums,
+                ),
+                album.sortedByDescending { it.playCount }.map { it.toMediaItem() }
+            )
+        }
+
+        val randomAlbums = subsonicClient.getAlbumList2(
+            "random",
+            10
+        ).toRequestStatus {
+            ActivityTab(
+                "random_albums",
+                LocalizedString(
+                    "Random albums",
+                    R.string.activity_random_albums,
+                ),
+                album.map { it.toMediaItem() }
+            )
+        }
+
+        val randomSongs = subsonicClient.getRandomSongs(20).toRequestStatus {
+            ActivityTab(
+                "random_songs",
+                LocalizedString(
+                    "Random songs",
+                    R.string.activity_random_songs,
+                ),
+                song.map { it.toMediaItem() }
+            )
+        }
+
+        RequestStatus.Success<_, MediaError>(
+            listOf(
+                mostPlayedAlbums,
+                randomAlbums,
+                randomSongs,
+            ).mapNotNull {
+                (it as? RequestStatus.Success)?.data?.takeIf { activityTab ->
+                    activityTab.items.isNotEmpty()
+                }
+            }
+        )
+    }.asFlow()
 
     override fun albums(sortingRule: SortingRule) = suspend {
         subsonicClient.getAlbumList2(
@@ -155,9 +211,9 @@ class SubsonicDataSource(arguments: Bundle) : MediaDataSource {
 
     override fun search(query: String) = suspend {
         subsonicClient.search3(query).toRequestStatus {
-            song.map { it.toMediaItem() } +
-                    artist.map { it.toMediaItem() } +
-                    album.map { it.toMediaItem() }
+            song.orEmpty().map { it.toMediaItem() } +
+                    artist.orEmpty().map { it.toMediaItem() } +
+                    album.orEmpty().map { it.toMediaItem() }
         }
     }.asFlow()
 
@@ -229,10 +285,10 @@ class SubsonicDataSource(arguments: Bundle) : MediaDataSource {
     }.asFlow()
 
     override fun playlist(playlistUri: Uri) = _playlistsChanged.mapLatest {
-        subsonicClient.getPlaylist(playlistUri.lastPathSegment!!.toInt()).toRequestStatus {
+        subsonicClient.getPlaylist(playlistUri.lastPathSegment!!).toRequestStatus {
             toPlaylist().toMediaItem() to entry.orEmpty().map {
                 it.toMediaItem()
-            } as List<Audio?>
+            }
         }
     }
 
@@ -281,7 +337,7 @@ class SubsonicDataSource(arguments: Bundle) : MediaDataSource {
         playlistUri: Uri,
         audioUri: Uri
     ) = subsonicClient.getPlaylist(
-        playlistUri.lastPathSegment!!.toInt()
+        playlistUri.lastPathSegment!!
     ).toRequestStatus {
         val audioId = audioUri.lastPathSegment!!
 
@@ -303,25 +359,21 @@ class SubsonicDataSource(arguments: Bundle) : MediaDataSource {
         uri = getAlbumUri(id),
         title = name,
         artistUri = artistId?.let { getArtistUri(it) } ?: Uri.EMPTY,
-        artistName = artist ?: "",
+        artistName = artist,
         year = year,
-        thumbnail = runCatching {
-            Thumbnail(
-                uri = Uri.parse(subsonicClient.getCoverArt(id)),
-                type = Thumbnail.Type.FRONT_COVER,
-            )
-        }.getOrNull(),
+        thumbnail = Thumbnail(
+            uri = Uri.parse(subsonicClient.getCoverArt(id)),
+            type = Thumbnail.Type.FRONT_COVER,
+        )
     )
 
     private fun ArtistID3.toMediaItem() = Artist(
         uri = getArtistUri(id),
         name = name,
-        thumbnail = runCatching {
-            Thumbnail(
-                uri = Uri.parse(subsonicClient.getCoverArt(id)),
-                type = Thumbnail.Type.BAND_ARTIST_LOGO,
-            )
-        }.getOrNull(),
+        thumbnail = Thumbnail(
+            uri = Uri.parse(subsonicClient.getCoverArt(id)),
+            type = Thumbnail.Type.BAND_ARTIST_LOGO,
+        )
     )
 
     private fun Child.toMediaItem() = Audio(
@@ -330,11 +382,11 @@ class SubsonicDataSource(arguments: Bundle) : MediaDataSource {
         mimeType = contentType ?: "",
         title = title,
         type = type.toAudioType(),
-        durationMs = (duration?.let { it * 1000 }) ?: 0,
+        durationMs = (duration?.toLong()?.let { it * 1000 }) ?: 0,
         artistUri = artistId?.let { getArtistUri(it) } ?: Uri.EMPTY,
-        artistName = artist ?: "",
+        artistName = artist,
         albumUri = albumId?.let { getAlbumUri(it) } ?: Uri.EMPTY,
-        albumTitle = album ?: "",
+        albumTitle = album,
         discNumber = discNumber,
         trackNumber = track,
         genreUri = genre?.let { getGenreUri(it) },
@@ -382,6 +434,9 @@ class SubsonicDataSource(arguments: Bundle) : MediaDataSource {
         Error.Code.OUTDATED_SERVER -> MediaError.IO
         Error.Code.WRONG_CREDENTIALS -> MediaError.INVALID_CREDENTIALS
         Error.Code.TOKEN_AUTHENTICATION_NOT_SUPPORTED -> MediaError.INVALID_CREDENTIALS
+        Error.Code.AUTHENTICATION_MECHANISM_NOT_SUPPORTED -> MediaError.INVALID_CREDENTIALS
+        Error.Code.MULTIPLE_CONFLICTING_AUTHENTICATION_MECHANISMS -> MediaError.INVALID_CREDENTIALS
+        Error.Code.INVALID_API_KEY -> MediaError.INVALID_CREDENTIALS
         Error.Code.USER_NOT_AUTHORIZED -> MediaError.INVALID_CREDENTIALS
         Error.Code.SUBSONIC_PREMIUM_TRIAL_ENDED -> MediaError.INVALID_CREDENTIALS
         Error.Code.NOT_FOUND -> MediaError.NOT_FOUND

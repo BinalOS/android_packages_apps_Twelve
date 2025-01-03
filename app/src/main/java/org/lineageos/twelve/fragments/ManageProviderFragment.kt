@@ -221,13 +221,11 @@ class ManageProviderFragment : Fragment(R.layout.fragment_manage_provider) {
                             }
                         )
 
-                        confirmMaterialButton.setContentDescription(
-                            getString(
-                                when (inEditMode) {
-                                    true -> R.string.save_provider_action
-                                    false -> R.string.add_provider_action
-                                }
-                            )
+                        confirmMaterialButton.contentDescription = getString(
+                            when (inEditMode) {
+                                true -> R.string.save_provider_action
+                                false -> R.string.add_provider_action
+                            }
                         )
 
                         deleteMaterialButton.isVisible = inEditMode

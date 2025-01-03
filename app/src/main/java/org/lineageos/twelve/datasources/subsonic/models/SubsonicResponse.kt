@@ -36,7 +36,7 @@ data class SubsonicResponse(
     val chatMessages: TODO = null,
     val albumList: AlbumList? = null,
     val albumList2: AlbumList2? = null,
-    val randomSongs: TODO = null,
+    val randomSongs: Songs? = null,
     val songsByGenre: Songs? = null,
     val lyrics: TODO = null,
     val podcasts: TODO = null,
@@ -60,7 +60,7 @@ data class SubsonicResponse(
     val version: Version,
 
     // OpenSubsonic
-    val openSubsonic: Boolean? = null,
     val type: String? = null,
     val serverVersion: String? = null,
+    val openSubsonic: Boolean? = null,
 )

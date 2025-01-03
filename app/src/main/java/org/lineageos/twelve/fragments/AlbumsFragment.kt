@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import org.lineageos.twelve.R
 import org.lineageos.twelve.ext.getViewProperty
+import org.lineageos.twelve.ext.navigateSafe
 import org.lineageos.twelve.ext.setProgressCompat
 import org.lineageos.twelve.models.Album
 import org.lineageos.twelve.models.RequestStatus
@@ -58,7 +59,7 @@ class AlbumsFragment : Fragment(R.layout.fragment_albums) {
                 view.setLeadingIconImage(R.drawable.ic_album)
                 view.setOnClickListener {
                     item?.let {
-                        findNavController().navigate(
+                        findNavController().navigateSafe(
                             R.id.action_mainFragment_to_fragment_album,
                             AlbumFragment.createBundle(it.uri)
                         )
@@ -67,8 +68,13 @@ class AlbumsFragment : Fragment(R.layout.fragment_albums) {
             }
 
             override fun ViewHolder.onBindView(item: Album) {
-                view.headlineText = item.title
-                view.supportingText = item.artistName
+                item.title?.also {
+                    view.headlineText = it
+                } ?: view.setHeadlineText(R.string.unknown)
+
+                item.artistName?.also {
+                    view.supportingText = it
+                } ?: view.setSupportingText(R.string.artist_unknown)
             }
         }
     }

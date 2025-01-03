@@ -7,7 +7,6 @@ package org.lineageos.twelve.fragments
 
 import android.animation.ValueAnimator
 import android.content.Intent
-import android.graphics.ImageDecoder
 import android.graphics.PixelFormat
 import android.icu.text.DecimalFormat
 import android.icu.text.DecimalFormatSymbols
@@ -46,6 +45,8 @@ import me.bogerchan.niervisualizer.NierVisualizerManager
 import org.lineageos.twelve.R
 import org.lineageos.twelve.TwelveApplication
 import org.lineageos.twelve.ext.getViewProperty
+import org.lineageos.twelve.ext.loadThumbnail
+import org.lineageos.twelve.ext.navigateSafe
 import org.lineageos.twelve.ext.updatePadding
 import org.lineageos.twelve.models.PlaybackState
 import org.lineageos.twelve.models.RepeatMode
@@ -202,7 +203,7 @@ class NowPlayingFragment : Fragment(R.layout.fragment_now_playing) {
         }
 
         fileTypeMaterialCardView.setOnClickListener {
-            findNavController().navigate(
+            findNavController().navigateSafe(
                 R.id.action_nowPlayingFragment_to_fragment_now_playing_stats_dialog
             )
         }
@@ -213,7 +214,7 @@ class NowPlayingFragment : Fragment(R.layout.fragment_now_playing) {
 
         viewLifecycleOwner.lifecycle.addObserver(visualizerViewLifecycleObserver)
 
-        // Audio informations
+        // Audio information
         audioTitleTextView.isSelected = true
         artistNameTextView.isSelected = true
         albumTitleTextView.isSelected = true
@@ -276,13 +277,9 @@ class NowPlayingFragment : Fragment(R.layout.fragment_now_playing) {
         visualizerMaterialButton.setOnClickListener {
             viewModel.nextVisualizerType()
         }
-        visualizerMaterialButton.setOnLongClickListener {
-            viewModel.disableVisualizer()
-            true
-        }
 
         queueMaterialButton.setOnClickListener {
-            findNavController().navigate(R.id.action_nowPlayingFragment_to_fragment_queue)
+            findNavController().navigateSafe(R.id.action_nowPlayingFragment_to_fragment_queue)
         }
 
         viewLifecycleOwner.lifecycleScope.launch {
@@ -310,7 +307,7 @@ class NowPlayingFragment : Fragment(R.layout.fragment_now_playing) {
                     viewModel.mediaItem.collectLatest { mediaItem ->
                         addOrRemoveFromPlaylistsMaterialButton.setOnClickListener {
                             mediaItem?.localConfiguration?.uri?.let { uri ->
-                                findNavController().navigate(
+                                findNavController().navigateSafe(
                                     R.id.action_nowPlayingFragment_to_fragment_add_or_remove_from_playlists,
                                     AddOrRemoveFromPlaylistsFragment.createBundle(uri)
                                 )
@@ -323,31 +320,21 @@ class NowPlayingFragment : Fragment(R.layout.fragment_now_playing) {
                     viewModel.mediaMetadata.collectLatest { mediaMetadata ->
                         val audioTitle = mediaMetadata.displayTitle
                             ?: mediaMetadata.title
-                        audioTitle?.let { title ->
-                            if (audioTitleTextView.text != title) {
-                                audioTitleTextView.text = title
-                            }
-                            audioTitleTextView.isVisible = true
-                        } ?: run {
-                            audioTitleTextView.isVisible = false
+                            ?: getString(R.string.unknown)
+                        if (audioTitleTextView.text != audioTitle) {
+                            audioTitleTextView.text = audioTitle
                         }
 
-                        mediaMetadata.artist?.let { artist ->
-                            if (artistNameTextView.text != artist) {
-                                artistNameTextView.text = artist
-                            }
-                            artistNameTextView.isVisible = true
-                        } ?: run {
-                            artistNameTextView.isVisible = false
+                        val artistName = mediaMetadata.artist
+                            ?: getString(R.string.artist_unknown)
+                        if (artistNameTextView.text != artistName) {
+                            artistNameTextView.text = artistName
                         }
 
-                        mediaMetadata.albumTitle?.let { albumTitle ->
-                            if (albumTitleTextView.text != albumTitle) {
-                                albumTitleTextView.text = albumTitle
-                            }
-                            albumTitleTextView.isVisible = true
-                        } ?: run {
-                            albumTitleTextView.isVisible = false
+                        val albumTitle = mediaMetadata.albumTitle
+                            ?: getString(R.string.album_unknown)
+                        if (albumTitleTextView.text != albumTitle) {
+                            albumTitleTextView.text = albumTitle
                         }
                     }
                 }
@@ -360,18 +347,10 @@ class NowPlayingFragment : Fragment(R.layout.fragment_now_playing) {
                             }
 
                             is RequestStatus.Success -> {
-                                it.data?.bitmap?.also { bitmap ->
-                                    albumArtImageView.setImageBitmap(bitmap)
-                                } ?: it.data?.uri?.also { artworkUri ->
-                                    ImageDecoder.createSource(
-                                        requireContext().contentResolver,
-                                        artworkUri
-                                    ).let { source ->
-                                        ImageDecoder.decodeBitmap(source)
-                                    }.also { bitmap ->
-                                        albumArtImageView.setImageBitmap(bitmap)
-                                    }
-                                } ?: albumArtImageView.setImageResource(R.drawable.ic_music_note)
+                                albumArtImageView.loadThumbnail(
+                                    it.data,
+                                    placeholder = R.drawable.ic_music_note,
+                                )
                             }
 
                             is RequestStatus.Error -> throw Exception(
