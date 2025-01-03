@@ -35,7 +35,7 @@ android {
     defaultConfig {
         applicationId = "org.lineageos.twelve"
         minSdk = 28
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 20
         versionName = "2.0"
 
