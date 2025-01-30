@@ -23,8 +23,8 @@ android {
         applicationId = "org.lineageos.twelve"
         minSdk = 28
         targetSdk = 36
-        versionCode = 20
-        versionName = "2.0"
+        versionCode = 30
+        versionName = "3.0"
 
         ksp {
                 arg("room.schemaLocation", "$projectDir/schemas")
