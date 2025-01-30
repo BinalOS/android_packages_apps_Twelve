@@ -12,6 +12,7 @@ plugins {
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.lineageos.generatebp)
+    id("com.google.devtools.ksp")
 }
 
 android {
@@ -25,10 +26,8 @@ android {
         versionCode = 20
         versionName = "2.0"
 
-        kapt {
-            arguments {
+        ksp {
                 arg("room.schemaLocation", "$projectDir/schemas")
-            }
         }
     }
 
@@ -86,7 +85,7 @@ dependencies {
     implementation(libs.androidx.recyclerview)
     implementation(libs.androidx.room.runtime)
     annotationProcessor(libs.androidx.room.compiler)
-    kapt(libs.androidx.room.compiler)
+    ksp(libs.androidx.room.compiler)
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.viewpager2)
     implementation(libs.coil)
