@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024 The LineageOS Project
+ * SPDX-FileCopyrightText: 2024-2025 The LineageOS Project
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -58,8 +58,16 @@ class PlaylistViewModel(application: Application) : TwelveViewModel(application)
     fun playPlaylist(position: Int = 0) {
         (playlist.value as? RequestStatus.Success)?.data?.second?.takeUnless {
             it.isEmpty()
-        }?.mapNotNull { it }?.let {
+        }?.let {
             playAudio(it, position)
+        }
+    }
+
+    fun shufflePlayPlaylist() {
+        (playlist.value as? RequestStatus.Success)?.data?.second?.takeUnless {
+            it.isEmpty()
+        }?.let {
+            playAudio(it.shuffled(), 0)
         }
     }
 }

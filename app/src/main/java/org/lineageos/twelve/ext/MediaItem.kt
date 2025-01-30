@@ -1,10 +1,11 @@
 /*
- * SPDX-FileCopyrightText: 2024 The LineageOS Project
+ * SPDX-FileCopyrightText: 2025 The LineageOS Project
  * SPDX-License-Identifier: Apache-2.0
  */
 
 package org.lineageos.twelve.ext
 
+import android.content.Context
 import android.net.Uri
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -28,11 +29,13 @@ fun buildMediaItem(
     discNumber: Int? = null,
     trackNumber: Int? = null,
     durationMs: Long? = null,
+    subtitle: String? = null,
 ): MediaItem {
     val metadata =
         MediaMetadata.Builder()
             .setAlbumTitle(album)
             .setTitle(title)
+            .setSubtitle(subtitle)
             .setArtist(artist)
             .setGenre(genre)
             .setIsBrowsable(isBrowsable)
@@ -52,3 +55,5 @@ fun buildMediaItem(
         .setMimeType(mimeType)
         .build()
 }
+
+suspend fun MediaItem.toThumbnail(context: Context) = mediaMetadata.toThumbnail(context)

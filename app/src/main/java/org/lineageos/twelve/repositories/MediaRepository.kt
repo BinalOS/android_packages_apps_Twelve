@@ -1,37 +1,52 @@
 /*
- * SPDX-FileCopyrightText: 2024 The LineageOS Project
+ * SPDX-FileCopyrightText: 2024-2025 The LineageOS Project
  * SPDX-License-Identifier: Apache-2.0
  */
 
 package org.lineageos.twelve.repositories
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Environment
+import android.os.storage.StorageManager
 import android.provider.MediaStore
 import androidx.core.os.bundleOf
+import androidx.preference.PreferenceManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import okhttp3.Cache
 import org.lineageos.twelve.database.TwelveDatabase
+import org.lineageos.twelve.datasources.DummyDataSource
 import org.lineageos.twelve.datasources.JellyfinDataSource
 import org.lineageos.twelve.datasources.LocalDataSource
 import org.lineageos.twelve.datasources.MediaDataSource
 import org.lineageos.twelve.datasources.MediaError
 import org.lineageos.twelve.datasources.SubsonicDataSource
+import org.lineageos.twelve.ext.DEFAULT_PROVIDER_KEY
+import org.lineageos.twelve.ext.SPLIT_LOCAL_DEVICES_KEY
+import org.lineageos.twelve.ext.defaultProvider
+import org.lineageos.twelve.ext.preferenceFlow
+import org.lineageos.twelve.ext.splitLocalDevices
+import org.lineageos.twelve.ext.storageVolumesFlow
 import org.lineageos.twelve.models.Provider
 import org.lineageos.twelve.models.ProviderArgument.Companion.requireArgument
+import org.lineageos.twelve.models.ProviderIdentifier
 import org.lineageos.twelve.models.ProviderType
 import org.lineageos.twelve.models.RequestStatus
 import org.lineageos.twelve.models.SortingRule
@@ -50,10 +65,18 @@ class MediaRepository(
     scope: CoroutineScope,
     private val database: TwelveDatabase,
 ) {
+    // System services
+    private val storageManager = context.getSystemService(StorageManager::class.java)
+
     /**
      * Content resolver.
      */
     private val contentResolver = context.contentResolver
+
+    /**
+     * Shared preferences.
+     */
+    private val sharedPreferences = PreferenceManager.getDefaultSharedPreferences(context)
 
     /**
      * Local data source singleton.
@@ -65,13 +88,54 @@ class MediaRepository(
     )
 
     /**
-     * Local provider singleton.
+     * All the available real storage volumes.
      */
-    private val localProvider = Provider(
-        ProviderType.LOCAL,
-        LOCAL_PROVIDER_ID,
-        Build.MODEL,
-    )
+    private val mediaStoreVolumes = storageManager.storageVolumesFlow()
+        .mapLatest { storageVolumes ->
+            storageVolumes
+                .filter { it.state in storageVolumeMountedStates }
+                .filter { it.mediaStoreVolumeName != null }
+                .sortedBy { it.isPrimary.not() }
+        }
+        .distinctUntilChanged()
+
+    private val mediaStoreProviders = combine(
+        sharedPreferences.preferenceFlow(
+            SPLIT_LOCAL_DEVICES_KEY,
+            getter = SharedPreferences::splitLocalDevices,
+        ),
+        mediaStoreVolumes,
+    ) { splitLocalDevices, mediaStoreVolumes ->
+        buildList {
+            add(
+                Provider(
+                    ProviderType.LOCAL,
+                    LOCAL_PROVIDER_ID,
+                    Build.MODEL,
+                    !splitLocalDevices,
+                ) to localDataSource
+            )
+
+            mediaStoreVolumes.forEach {
+                val mediaStoreVolumeName = it.mediaStoreVolumeName ?: throw Exception(
+                    "MediaStore volume name cannot be null"
+                )
+
+                add(
+                    Provider(
+                        ProviderType.LOCAL,
+                        mediaStoreVolumeName.hashCode().toLong(),
+                        it.getDescription(context),
+                        splitLocalDevices,
+                    ) to LocalDataSource(
+                        contentResolver,
+                        mediaStoreVolumeName,
+                        database,
+                    )
+                )
+            }
+        }
+    }
 
     /**
      * HTTP cache
@@ -83,7 +147,7 @@ class MediaRepository(
      * All the providers. This is our single point of truth for the providers.
      */
     private val allProvidersToDataSource = combine(
-        flowOf(listOf(localProvider to localDataSource)),
+        mediaStoreProviders,
         database.getSubsonicProviderDao().getAll().mapLatest { subsonicProviders ->
             subsonicProviders.map {
                 val arguments = bundleOf(
@@ -98,7 +162,16 @@ class MediaRepository(
                     ProviderType.SUBSONIC,
                     it.id,
                     it.name,
-                ) to SubsonicDataSource(arguments, cache)
+                    true,
+                ) to SubsonicDataSource(
+                    arguments,
+                    { datasource ->
+                        database.getLastPlayedDao().get(datasource)
+                    }, { datasource, uri ->
+                        database.getLastPlayedDao().set(datasource, uri)
+                    },
+                    cache
+                )
             }
         },
         database.getJellyfinProviderDao().getAll().mapLatest { jellyfinProviders ->
@@ -113,11 +186,21 @@ class MediaRepository(
                     ProviderType.JELLYFIN,
                     it.id,
                     it.name,
-                ) to JellyfinDataSource(context, arguments, it.deviceIdentifier, {
-                    database.getJellyfinProviderDao().getToken(it.id)
-                }, { token ->
-                    database.getJellyfinProviderDao().updateToken(it.id, token)
-                }, cache)
+                    true,
+                ) to JellyfinDataSource(
+                    context,
+                    arguments,
+                    it.deviceIdentifier, {
+                        database.getJellyfinProviderDao().getToken(it.id)
+                    }, { token ->
+                        database.getJellyfinProviderDao().updateToken(it.id, token)
+                    }, { datasource ->
+                        database.getLastPlayedDao().get(datasource)
+                    }, { datasource, uri ->
+                        database.getLastPlayedDao().set(datasource, uri)
+                    },
+                    cache
+                )
             }
         }
     ) { providers -> providers.toList().flatten() }
@@ -125,63 +208,97 @@ class MediaRepository(
         .stateIn(
             scope,
             SharingStarted.Eagerly,
-            listOf(localProvider to localDataSource),
-        )
-
-    /**
-     * The current navigation provider's identifiers.
-     */
-    private var _navigationProvider = MutableStateFlow(
-        ProviderType.LOCAL to LOCAL_PROVIDER_ID
-    )
-
-    /**
-     * The current navigation provider's data source.
-     */
-    private val navigationDataSource = _navigationProvider
-        .flatMapLatest {
-            dataSource(it.first, it.second).mapLatest { dataSource ->
-                dataSource ?: localDataSource
-            }
-        }
-        .flowOn(Dispatchers.IO)
-        .stateIn(
-            scope,
-            SharingStarted.Eagerly,
-            localDataSource,
+            listOf(),
         )
 
     /**
      * All providers available to the app.
      */
-    val allProviders = allProvidersToDataSource.mapLatest {
+    private val allProviders = allProvidersToDataSource.mapLatest {
         it.map { (provider, _) -> provider }
     }
         .flowOn(Dispatchers.IO)
         .stateIn(
             scope,
             SharingStarted.Eagerly,
-            listOf(localProvider),
+            listOf(),
+        )
+
+    /**
+     * All providers that the user can be aware of.
+     */
+    val allVisibleProviders = allProviders
+        .mapLatest { it.filter { provider -> provider.visible } }
+        .flowOn(Dispatchers.IO)
+        .stateIn(
+            scope,
+            SharingStarted.Eagerly,
+            listOf(),
+        )
+
+    /**
+     * The current navigation provider's identifiers.
+     */
+    private val navigationProviderIdentifier = sharedPreferences.preferenceFlow(
+        DEFAULT_PROVIDER_KEY, getter = SharedPreferences::defaultProvider
+    )
+        .flowOn(Dispatchers.IO)
+        .shareIn(
+            scope,
+            SharingStarted.WhileSubscribed(),
+        )
+
+    /**
+     * The current navigation provider and its data source.
+     */
+    private val navigationProviderToDataSource = combine(
+        navigationProviderIdentifier,
+        allProvidersToDataSource,
+    ) { navigationProviderIdentifier, allProvidersToDataSource ->
+        navigationProviderIdentifier?.let {
+            allProvidersToDataSource.firstOrNull { (provider, _) ->
+                provider.type == it.type && provider.typeId == it.typeId && provider.visible
+            }
+        } ?: allProvidersToDataSource.firstOrNull { it.first.visible }
+    }
+        .flowOn(Dispatchers.IO)
+        .stateIn(
+            scope,
+            SharingStarted.Eagerly,
+            null,
         )
 
     /**
      * The current navigation provider. This is used when the user looks for all media types,
      * like the home page, or with the search feature. In case the selected one disappears, the
-     * repository will automatically fallback to the local provider.
+     * repository will automatically fallback to the first provider available (this usually being
+     * the local provider). If no provider is available, this will return null.
      */
-    val navigationProvider = _navigationProvider
-        .flatMapLatest {
-            provider(it.first, it.second).mapLatest { currentNavigationProvider ->
-                // Default to local provider if not found
-                currentNavigationProvider ?: localProvider
-            }
-        }
+    val navigationProvider = navigationProviderToDataSource
+        .mapLatest { it?.first }
         .flowOn(Dispatchers.IO)
         .stateIn(
             scope,
             SharingStarted.Eagerly,
-            localProvider,
+            null,
         )
+
+    /**
+     * The current navigation provider's data source. Even when no provider is available, a dummy
+     * data source will be used.
+     */
+    private val navigationDataSource = navigationProviderToDataSource
+        .mapLatest { it?.second ?: DummyDataSource }
+        .flowOn(Dispatchers.IO)
+        .stateIn(
+            scope,
+            SharingStarted.Eagerly,
+            DummyDataSource,
+        )
+
+    init {
+        scope.launch { gcLocalMediaStats() }
+    }
 
     /**
      * Given a media item, get a flow of the provider that handles these media items' URIs.
@@ -212,13 +329,12 @@ class MediaRepository(
     /**
      * Get a flow of the [Provider].
      *
-     * @param providerType The [ProviderType]
-     * @param providerTypeId The [ProviderType] specific provider ID
+     * @param providerIdentifier The [ProviderIdentifier]
      * @return A flow of the corresponding [Provider].
      */
-    fun provider(providerType: ProviderType, providerTypeId: Long) = allProviders.mapLatest {
+    fun provider(providerIdentifier: ProviderIdentifier) = allProviders.mapLatest {
         it.firstOrNull { provider ->
-            providerType == provider.type && providerTypeId == provider.typeId
+            providerIdentifier.type == provider.type && providerIdentifier.typeId == provider.typeId
         }
     }
 
@@ -226,15 +342,14 @@ class MediaRepository(
      * Get a flow of the [Bundle] containing the arguments. This method should only be used by the
      * provider manager fragment.
      *
-     * @param providerType The [ProviderType]
-     * @param providerTypeId The [ProviderType] specific provider ID
+     * @param providerIdentifier The [ProviderIdentifier]
      * @return A flow of [Bundle] containing the arguments.
      */
-    fun providerArguments(providerType: ProviderType, providerTypeId: Long) = when (providerType) {
+    fun providerArguments(providerIdentifier: ProviderIdentifier) = when (providerIdentifier.type) {
         ProviderType.LOCAL -> flowOf(Bundle.EMPTY)
 
         ProviderType.SUBSONIC -> database.getSubsonicProviderDao().getById(
-            providerTypeId
+            providerIdentifier.typeId
         ).mapLatest { subsonicProvider ->
             subsonicProvider?.let {
                 bundleOf(
@@ -248,7 +363,7 @@ class MediaRepository(
         }
 
         ProviderType.JELLYFIN -> database.getJellyfinProviderDao().getById(
-            providerTypeId
+            providerIdentifier.typeId
         ).mapLatest { jellyfinProvider ->
             jellyfinProvider?.let {
                 bundleOf(
@@ -305,18 +420,16 @@ class MediaRepository(
     /**
      * Update an already existing provider.
      *
-     * @param providerType The [ProviderType]
-     * @param providerTypeId The [ProviderType] specific provider ID
+     * @param providerIdentifier The [ProviderIdentifier]
      * @param name The updated name
      * @param arguments The updated arguments
      */
     suspend fun updateProvider(
-        providerType: ProviderType,
-        providerTypeId: Long,
+        providerIdentifier: ProviderIdentifier,
         name: String,
         arguments: Bundle
     ) {
-        when (providerType) {
+        when (providerIdentifier.type) {
             ProviderType.LOCAL -> throw Exception("Cannot update local providers")
 
             ProviderType.SUBSONIC -> {
@@ -328,7 +441,7 @@ class MediaRepository(
                 )
 
                 database.getSubsonicProviderDao().update(
-                    providerTypeId,
+                    providerIdentifier.typeId,
                     name,
                     server,
                     username,
@@ -343,7 +456,7 @@ class MediaRepository(
                 val password = arguments.requireArgument(JellyfinDataSource.ARG_PASSWORD)
 
                 database.getJellyfinProviderDao().update(
-                    providerTypeId,
+                    providerIdentifier.typeId,
                     name,
                     server,
                     username,
@@ -356,16 +469,19 @@ class MediaRepository(
     /**
      * Delete a provider.
      *
-     * @param providerType The [ProviderType]
-     * @param providerTypeId The [ProviderType] specific provider ID
+     * @param providerIdentifier The [ProviderIdentifier]
      */
-    suspend fun deleteProvider(providerType: ProviderType, providerTypeId: Long) {
-        when (providerType) {
+    suspend fun deleteProvider(providerIdentifier: ProviderIdentifier) {
+        when (providerIdentifier.type) {
             ProviderType.LOCAL -> throw Exception("Cannot delete local providers")
 
-            ProviderType.SUBSONIC -> database.getSubsonicProviderDao().delete(providerTypeId)
+            ProviderType.SUBSONIC -> database.getSubsonicProviderDao().delete(
+                providerIdentifier.typeId
+            )
 
-            ProviderType.JELLYFIN -> database.getJellyfinProviderDao().delete(providerTypeId)
+            ProviderType.JELLYFIN -> database.getJellyfinProviderDao().delete(
+                providerIdentifier.typeId
+            )
         }
     }
 
@@ -373,10 +489,24 @@ class MediaRepository(
      * Change the default navigation provider. In case this provider disappears the repository will
      * automatically fallback to the local provider.
      *
-     * @param provider The new navigation provider
+     * @param providerIdentifier The new navigation provider identifier
      */
-    fun setNavigationProvider(provider: Provider) {
-        _navigationProvider.value = provider.type to provider.typeId
+    fun setNavigationProvider(providerIdentifier: ProviderIdentifier) {
+        sharedPreferences.defaultProvider = providerIdentifier
+    }
+
+    /**
+     * Delete all local stats entries.
+     */
+    suspend fun resetLocalStats() {
+        database.getLocalMediaStatsProviderDao().deleteAll()
+    }
+
+    /**
+     * @see MediaDataSource.status
+     */
+    fun status(provider: Provider) = withProviderDataSource(provider) {
+        status()
     }
 
     /**
@@ -472,8 +602,8 @@ class MediaRepository(
      * @see MediaDataSource.createPlaylist
      */
     suspend fun createPlaylist(
-        provider: Provider, name: String
-    ) = getDataSource(provider)?.createPlaylist(
+        providerIdentifier: ProviderIdentifier, name: String
+    ) = getDataSource(providerIdentifier)?.createPlaylist(
         name
     ) ?: RequestStatus.Error(
         MediaError.NOT_FOUND
@@ -511,40 +641,41 @@ class MediaRepository(
         }
 
     /**
-     * Get a flow of the [MediaDataSource] associated with the given [Provider].
-     *
-     * @param providerType The [ProviderType]
-     * @param providerTypeId The [ProviderType] specific provider ID
-     * @return The corresponding [MediaDataSource]
+     * @see MediaDataSource.onAudioPlayed
      */
-    private fun dataSource(
-        providerType: ProviderType, providerTypeId: Long
-    ) = allProvidersToDataSource.mapLatest {
-        it.firstOrNull { (provider, _) ->
-            providerType == provider.type && providerTypeId == provider.typeId
-        }?.second
-    }
+    suspend fun onAudioPlayed(audioUri: Uri) =
+        withMediaItemsDataSource(audioUri) {
+            onAudioPlayed(audioUri)
+        }
 
     /**
      * Get the [MediaDataSource] associated with the given [Provider].
      *
-     * @param providerType The [ProviderType]
-     * @param providerTypeId The [ProviderType] specific provider ID
+     * @param providerIdentifier The [ProviderIdentifier]
      * @return The corresponding [MediaDataSource]
      */
     private fun getDataSource(
-        providerType: ProviderType, providerTypeId: Long
+        providerIdentifier: ProviderIdentifier,
     ) = allProvidersToDataSource.value.firstOrNull { (provider, _) ->
-        providerType == provider.type && providerTypeId == provider.typeId
+        providerIdentifier.type == provider.type && providerIdentifier.typeId == provider.typeId
     }?.second
 
     /**
-     * Get the [MediaDataSource] associated with the given [Provider].
+     * Find the [MediaDataSource] that matches the given [Provider] and call the given predicate on
+     * it.
      *
-     * @param provider The provider
-     * @return The corresponding [MediaDataSource]
+     * @param providerIdentifier The [ProviderIdentifier]
+     * @return A flow containing the result of the predicate. It will emit a not found error if
+     *   no [MediaDataSource] matches the given provider
      */
-    private fun getDataSource(provider: Provider) = getDataSource(provider.type, provider.typeId)
+    private fun <T> withProviderDataSource(
+        providerIdentifier: ProviderIdentifier,
+        predicate: MediaDataSource.() -> Flow<RequestStatus<T, MediaError>>
+    ) = allProvidersToDataSource.flatMapLatest {
+        it.firstOrNull { (provider, _) ->
+            providerIdentifier.type == provider.type && providerIdentifier.typeId == provider.typeId
+        }?.second?.predicate() ?: flowOf(RequestStatus.Error(MediaError.NOT_FOUND))
+    }
 
     /**
      * Find the [MediaDataSource] that handles the given URIs and call the given predicate on it.
@@ -579,6 +710,14 @@ class MediaRepository(
     companion object {
         private const val LOCAL_PROVIDER_ID = 0L
 
+        /**
+         * @see MediaStore.getExternalVolumeNames
+         */
+        private val storageVolumeMountedStates = arrayOf(
+            Environment.MEDIA_MOUNTED,
+            Environment.MEDIA_MOUNTED_READ_ONLY,
+        )
+
         val defaultAlbumsSortingRule = SortingRule(
             SortingStrategy.CREATION_DATE, true
         )
@@ -594,5 +733,24 @@ class MediaRepository(
         val defaultPlaylistsSortingRule = SortingRule(
             SortingStrategy.MODIFICATION_DATE, true
         )
+    }
+
+    /**
+     * Remove items that are no longer in the local data source from the local media stats table.
+     */
+    private suspend fun gcLocalMediaStats() {
+        val statsDao = database.getLocalMediaStatsProviderDao()
+        val allStats = statsDao.getAll()
+        val inSource = localDataSource.audios().mapLatest { it }.first()
+
+        val removedMedia = buildList {
+            allStats.forEach {
+                if (inSource.none { audio -> audio.playbackUri == it.mediaUri }) {
+                    add(it.mediaUri)
+                }
+            }
+        }
+
+        statsDao.delete(removedMedia)
     }
 }

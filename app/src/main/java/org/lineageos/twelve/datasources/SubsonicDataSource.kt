@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024 The LineageOS Project
+ * SPDX-FileCopyrightText: 2024-2025 The LineageOS Project
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -8,8 +8,11 @@ package org.lineageos.twelve.datasources
 import android.net.Uri
 import android.os.Bundle
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asFlow
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.mapLatest
 import okhttp3.Cache
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
@@ -24,6 +27,7 @@ import org.lineageos.twelve.models.Album
 import org.lineageos.twelve.models.Artist
 import org.lineageos.twelve.models.ArtistWorks
 import org.lineageos.twelve.models.Audio
+import org.lineageos.twelve.models.DataSourceInformation
 import org.lineageos.twelve.models.Genre
 import org.lineageos.twelve.models.GenreContent
 import org.lineageos.twelve.models.LocalizedString
@@ -32,15 +36,23 @@ import org.lineageos.twelve.models.Playlist
 import org.lineageos.twelve.models.ProviderArgument
 import org.lineageos.twelve.models.ProviderArgument.Companion.requireArgument
 import org.lineageos.twelve.models.RequestStatus
+import org.lineageos.twelve.models.RequestStatus.Companion.map
 import org.lineageos.twelve.models.SortingRule
 import org.lineageos.twelve.models.SortingStrategy
 import org.lineageos.twelve.models.Thumbnail
+import org.lineageos.twelve.utils.toRequestStatus
+import org.lineageos.twelve.utils.toResult
 
 /**
  * Subsonic based data source.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
-class SubsonicDataSource(arguments: Bundle, cache: Cache? = null) : MediaDataSource {
+class SubsonicDataSource(
+    arguments: Bundle,
+    private val lastPlayedGetter: (String) -> Flow<Uri?>,
+    private val lastPlayedSetter: suspend (String, Uri) -> Long,
+    cache: Cache? = null,
+) : MediaDataSource {
     private val server = arguments.requireArgument(ARG_SERVER)
     private val username = arguments.requireArgument(ARG_USERNAME)
     private val password = arguments.requireArgument(ARG_PASSWORD)
@@ -73,6 +85,65 @@ class SubsonicDataSource(arguments: Bundle, cache: Cache? = null) : MediaDataSou
      */
     private val _playlistsChanged = MutableStateFlow(Any())
 
+    override fun status() = suspend {
+        val ping = subsonicClient.ping().toRequestStatus { this }
+        val license = subsonicClient.getLicense().toResult { this }
+
+        ping.map {
+            listOfNotNull(
+                DataSourceInformation(
+                    "version",
+                    LocalizedString.StringResIdLocalizedString(
+                        R.string.subsonic_version,
+                    ),
+                    LocalizedString.StringResIdLocalizedString(
+                        R.string.subsonic_version_format,
+                        listOf(it.version.major, it.version.minor, it.version.revision)
+                    )
+                ),
+                it.type?.let { type ->
+                    DataSourceInformation(
+                        "server_type",
+                        LocalizedString.StringResIdLocalizedString(
+                            R.string.subsonic_server_type,
+                        ),
+                        LocalizedString.StringLocalizedString(type)
+                    )
+                },
+                it.serverVersion?.let { serverVersion ->
+                    DataSourceInformation(
+                        "server_version",
+                        LocalizedString.StringResIdLocalizedString(
+                            R.string.subsonic_server_version,
+                        ),
+                        LocalizedString.StringLocalizedString(serverVersion)
+                    )
+                },
+                it.openSubsonic?.let { openSubsonic ->
+                    DataSourceInformation(
+                        "supports_opensubsonic",
+                        LocalizedString.StringResIdLocalizedString(
+                            R.string.subsonic_supports_opensubsonic,
+                        ),
+                        LocalizedString.of(openSubsonic)
+                    )
+                },
+                license?.let { lic ->
+                    DataSourceInformation(
+                        "license",
+                        LocalizedString.StringResIdLocalizedString(R.string.subsonic_license),
+                        LocalizedString.StringResIdLocalizedString(
+                            when (lic.valid) {
+                                true -> R.string.subsonic_license_valid
+                                false -> R.string.subsonic_license_invalid
+                            }
+                        )
+                    )
+                },
+            )
+        }
+    }.asFlow()
+
     override fun isMediaItemCompatible(mediaItemUri: Uri) = mediaItemUri.toString().startsWith(
         dataSourceBaseUri.toString()
     )
@@ -97,8 +168,7 @@ class SubsonicDataSource(arguments: Bundle, cache: Cache? = null) : MediaDataSou
         ).toRequestStatus {
             ActivityTab(
                 "most_played_albums",
-                LocalizedString(
-                    "Most played albums",
+                LocalizedString.StringResIdLocalizedString(
                     R.string.activity_most_played_albums,
                 ),
                 album.sortedByDescending { it.playCount }.map { it.toMediaItem() }
@@ -111,8 +181,7 @@ class SubsonicDataSource(arguments: Bundle, cache: Cache? = null) : MediaDataSou
         ).toRequestStatus {
             ActivityTab(
                 "random_albums",
-                LocalizedString(
-                    "Random albums",
+                LocalizedString.StringResIdLocalizedString(
                     R.string.activity_random_albums,
                 ),
                 album.map { it.toMediaItem() }
@@ -122,8 +191,7 @@ class SubsonicDataSource(arguments: Bundle, cache: Cache? = null) : MediaDataSou
         val randomSongs = subsonicClient.getRandomSongs(20).toRequestStatus {
             ActivityTab(
                 "random_songs",
-                LocalizedString(
-                    "Random songs",
+                LocalizedString.StringResIdLocalizedString(
                     R.string.activity_random_songs,
                 ),
                 song.map { it.toMediaItem() }
@@ -151,6 +219,7 @@ class SubsonicDataSource(arguments: Bundle, cache: Cache? = null) : MediaDataSou
             album.maybeSortedBy(
                 sortingRule.reverse,
                 when (sortingRule.strategy) {
+                    SortingStrategy.ARTIST_NAME -> { album -> album.artist }
                     SortingStrategy.CREATION_DATE -> { album -> album.year }
                     SortingStrategy.NAME -> { album -> album.name }
                     SortingStrategy.PLAY_COUNT -> { album -> album.playCount }
@@ -306,11 +375,16 @@ class SubsonicDataSource(arguments: Bundle, cache: Cache? = null) : MediaDataSou
         }
     }
 
+    override fun lastPlayedAudio() = lastPlayedGetter(lastPlayedKey())
+        .flatMapLatest { uri ->
+            uri?.let(this::audio) ?: flowOf(RequestStatus.Error(MediaError.NOT_FOUND))
+        }
+
     override suspend fun createPlaylist(name: String) = subsonicClient.createPlaylist(
         null, name, listOf()
     ).toRequestStatus {
         onPlaylistsChanged()
-        getPlaylistUri(id.toString())
+        getPlaylistUri(id)
     }
 
     override suspend fun renamePlaylist(
@@ -355,25 +429,28 @@ class SubsonicDataSource(arguments: Bundle, cache: Cache? = null) : MediaDataSou
         }
     }
 
+    override suspend fun onAudioPlayed(audioUri: Uri) = lastPlayedSetter(lastPlayedKey(), audioUri)
+        .let { RequestStatus.Success<Unit, MediaError>(Unit) }
+
     private fun AlbumID3.toMediaItem() = Album(
         uri = getAlbumUri(id),
         title = name,
         artistUri = artistId?.let { getArtistUri(it) } ?: Uri.EMPTY,
         artistName = artist,
         year = year,
-        thumbnail = Thumbnail(
-            uri = Uri.parse(subsonicClient.getCoverArt(id)),
-            type = Thumbnail.Type.FRONT_COVER,
-        )
+        thumbnail = Thumbnail.Builder()
+            .setUri(Uri.parse(subsonicClient.getCoverArt(id)))
+            .setType(Thumbnail.Type.FRONT_COVER)
+            .build(),
     )
 
     private fun ArtistID3.toMediaItem() = Artist(
         uri = getArtistUri(id),
         name = name,
-        thumbnail = Thumbnail(
-            uri = Uri.parse(subsonicClient.getCoverArt(id)),
-            type = Thumbnail.Type.BAND_ARTIST_LOGO,
-        )
+        thumbnail = Thumbnail.Builder()
+            .setUri(Uri.parse(subsonicClient.getCoverArt(id)))
+            .setType(Thumbnail.Type.BAND_ARTIST_LOGO)
+            .build(),
     )
 
     private fun Child.toMediaItem() = Audio(
@@ -400,7 +477,7 @@ class SubsonicDataSource(arguments: Bundle, cache: Cache? = null) : MediaDataSou
     )
 
     private fun org.lineageos.twelve.datasources.subsonic.models.Playlist.toMediaItem() = Playlist(
-        uri = getPlaylistUri(id.toString()),
+        uri = getPlaylistUri(id),
         name = name,
     )
 
@@ -415,16 +492,6 @@ class SubsonicDataSource(arguments: Bundle, cache: Cache? = null) : MediaDataSou
         )
 
         else -> Audio.Type.MUSIC
-    }
-
-    private suspend fun <T, O> SubsonicClient.MethodResult<T>.toRequestStatus(
-        resultGetter: suspend T.() -> O
-    ): RequestStatus<O, MediaError> = when (this) {
-        is SubsonicClient.MethodResult.Success -> RequestStatus.Success(result.resultGetter())
-        is SubsonicClient.MethodResult.HttpError -> RequestStatus.Error(MediaError.IO)
-        is SubsonicClient.MethodResult.SubsonicError -> RequestStatus.Error(
-            error?.code?.toRequestStatusType() ?: MediaError.IO
-        )
     }
 
     private fun Error.Code.toRequestStatusType() = when (this) {
@@ -485,8 +552,11 @@ class SubsonicDataSource(arguments: Bundle, cache: Cache? = null) : MediaDataSou
         reverse: Boolean,
         selector: ((T) -> Comparable<*>?)?,
     ) = selector?.let {
+        @Suppress("UNCHECKED_CAST")
         sortedBy { t -> it(t) as? Comparable<Any?> }.asMaybeReversed(reverse)
     } ?: this
+
+    private fun lastPlayedKey() = "subsonic:$username@$server"
 
     companion object {
         private const val ALBUMS_PATH = "albums"

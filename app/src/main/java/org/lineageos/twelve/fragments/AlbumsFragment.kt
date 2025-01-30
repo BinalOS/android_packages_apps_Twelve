@@ -28,9 +28,10 @@ import org.lineageos.twelve.ext.setProgressCompat
 import org.lineageos.twelve.models.Album
 import org.lineageos.twelve.models.RequestStatus
 import org.lineageos.twelve.models.SortingStrategy
+import org.lineageos.twelve.ui.recyclerview.DisplayAwareGridLayoutManager
 import org.lineageos.twelve.ui.recyclerview.SimpleListAdapter
 import org.lineageos.twelve.ui.recyclerview.UniqueItemDiffCallback
-import org.lineageos.twelve.ui.views.ListItem
+import org.lineageos.twelve.ui.views.AlbumsItem
 import org.lineageos.twelve.ui.views.SortingChip
 import org.lineageos.twelve.utils.PermissionsChecker
 import org.lineageos.twelve.utils.PermissionsUtils
@@ -51,12 +52,11 @@ class AlbumsFragment : Fragment(R.layout.fragment_albums) {
 
     // Recyclerview
     private val adapter by lazy {
-        object : SimpleListAdapter<Album, ListItem>(
+        object : SimpleListAdapter<Album, AlbumsItem>(
             UniqueItemDiffCallback(),
-            ::ListItem,
+            ::AlbumsItem,
         ) {
             override fun ViewHolder.onPrepareView() {
-                view.setLeadingIconImage(R.drawable.ic_album)
                 view.setOnClickListener {
                     item?.let {
                         findNavController().navigateSafe(
@@ -65,16 +65,21 @@ class AlbumsFragment : Fragment(R.layout.fragment_albums) {
                         )
                     }
                 }
+                view.setOnLongClickListener {
+                    item?.let {
+                        findNavController().navigateSafe(
+                            R.id.action_mainFragment_to_fragment_media_item_bottom_sheet_dialog,
+                            MediaItemBottomSheetDialogFragment.createBundle(
+                                it.uri, it.mediaType,
+                            )
+                        )
+                        true
+                    } ?: false
+                }
             }
 
             override fun ViewHolder.onBindView(item: Album) {
-                item.title?.also {
-                    view.headlineText = it
-                } ?: view.setHeadlineText(R.string.unknown)
-
-                item.artistName?.also {
-                    view.supportingText = it
-                } ?: view.setSupportingText(R.string.artist_unknown)
+                view.setItem(item)
             }
         }
     }
@@ -89,6 +94,7 @@ class AlbumsFragment : Fragment(R.layout.fragment_albums) {
 
         sortingChip.setSortingStrategies(
             sortedMapOf(
+                SortingStrategy.ARTIST_NAME to R.string.sort_by_artist_name,
                 SortingStrategy.CREATION_DATE to R.string.sort_by_release_date,
                 SortingStrategy.NAME to R.string.sort_by_title,
                 SortingStrategy.PLAY_COUNT to R.string.sort_by_play_count,
@@ -98,6 +104,7 @@ class AlbumsFragment : Fragment(R.layout.fragment_albums) {
             viewModel.setSortingRule(it)
         }
 
+        recyclerView.layoutManager = DisplayAwareGridLayoutManager(recyclerView.context, 2)
         recyclerView.adapter = adapter
 
         viewLifecycleOwner.lifecycleScope.launch {
@@ -111,6 +118,7 @@ class AlbumsFragment : Fragment(R.layout.fragment_albums) {
 
     override fun onDestroyView() {
         recyclerView.adapter = null
+        recyclerView.layoutManager = null
 
         super.onDestroyView()
     }
@@ -135,7 +143,11 @@ class AlbumsFragment : Fragment(R.layout.fragment_albums) {
                         }
 
                         is RequestStatus.Error -> {
-                            Log.e(LOG_TAG, "Failed to load albums, error: ${it.error}")
+                            Log.e(
+                                LOG_TAG,
+                                "Failed to load albums, error: ${it.error}",
+                                it.throwable
+                            )
 
                             adapter.submitList(emptyList())
 

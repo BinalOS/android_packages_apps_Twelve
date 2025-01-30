@@ -73,6 +73,17 @@ class PlaylistsFragment : Fragment(R.layout.fragment_playlists) {
                     }
                 }
             }
+            view.setOnLongClickListener {
+                item?.let {
+                    findNavController().navigateSafe(
+                        R.id.action_mainFragment_to_fragment_media_item_bottom_sheet_dialog,
+                        MediaItemBottomSheetDialogFragment.createBundle(
+                            it.uri, it.mediaType,
+                        )
+                    )
+                    true
+                } ?: false
+            }
         }
 
         override fun ViewHolder.onBindView(item: Playlist) {
@@ -160,7 +171,11 @@ class PlaylistsFragment : Fragment(R.layout.fragment_playlists) {
                         }
 
                         is RequestStatus.Error -> {
-                            Log.e(LOG_TAG, "Failed to load playlists, error: ${it.error}")
+                            Log.e(
+                                LOG_TAG,
+                                "Failed to load playlists, error: ${it.error}",
+                                it.throwable
+                            )
 
                             adapter.submitList(emptyList())
 

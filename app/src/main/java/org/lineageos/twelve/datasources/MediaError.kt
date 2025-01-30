@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024 The LineageOS Project
+ * SPDX-FileCopyrightText: 2024-2025 The LineageOS Project
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -43,4 +43,14 @@ enum class MediaError {
      * Response deserialization error.
      */
     DESERIALIZATION,
+
+    /**
+     * The request was cancelled.
+     */
+    CANCELLED,
+
+    /**
+     * The server returned an invalid response.
+     */
+    INVALID_RESPONSE,
 }

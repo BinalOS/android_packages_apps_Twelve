@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024 The LineageOS Project
+ * SPDX-FileCopyrightText: 2024-2025 The LineageOS Project
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -8,6 +8,7 @@ package org.lineageos.twelve.fragments
 import android.animation.ValueAnimator
 import android.content.Intent
 import android.graphics.PixelFormat
+import android.graphics.drawable.AnimatedVectorDrawable
 import android.icu.text.DecimalFormat
 import android.icu.text.DecimalFormatSymbols
 import android.media.audiofx.AudioEffect
@@ -19,8 +20,6 @@ import android.widget.ImageView
 import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.constraintlayout.widget.ConstraintLayout
-import androidx.core.animation.doOnEnd
-import androidx.core.animation.doOnStart
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.isVisible
@@ -39,22 +38,27 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.card.MaterialCardView
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import com.google.android.material.slider.Slider
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import me.bogerchan.niervisualizer.NierVisualizerManager
 import org.lineageos.twelve.R
-import org.lineageos.twelve.TwelveApplication
 import org.lineageos.twelve.ext.getViewProperty
 import org.lineageos.twelve.ext.loadThumbnail
 import org.lineageos.twelve.ext.navigateSafe
 import org.lineageos.twelve.ext.updatePadding
+import org.lineageos.twelve.models.MediaType
 import org.lineageos.twelve.models.PlaybackState
 import org.lineageos.twelve.models.RepeatMode
 import org.lineageos.twelve.models.RequestStatus
+import org.lineageos.twelve.ui.visualizer.VisualizerNVDataSource
+import org.lineageos.twelve.utils.PermissionsChecker
+import org.lineageos.twelve.utils.PermissionsUtils
 import org.lineageos.twelve.utils.TimestampFormatter
 import org.lineageos.twelve.viewmodels.NowPlayingViewModel
 import java.util.Locale
 import kotlin.math.roundToLong
+import kotlin.reflect.safeCast
 
 /**
  * Now playing fragment.
@@ -64,10 +68,10 @@ class NowPlayingFragment : Fragment(R.layout.fragment_now_playing) {
     private val viewModel by viewModels<NowPlayingViewModel>()
 
     // Views
-    private val addOrRemoveFromPlaylistsMaterialButton by getViewProperty<MaterialButton>(R.id.addOrRemoveFromPlaylistsMaterialButton)
     private val albumArtConstraintLayout by getViewProperty<ConstraintLayout?>(R.id.albumArtConstraintLayout)
     private val albumArtImageView by getViewProperty<ImageView>(R.id.albumArtImageView)
     private val albumTitleTextView by getViewProperty<TextView>(R.id.albumTitleTextView)
+    private val audioInformationMaterialButton by getViewProperty<MaterialButton>(R.id.audioInformationMaterialButton)
     private val audioTitleTextView by getViewProperty<TextView>(R.id.audioTitleTextView)
     private val artistNameTextView by getViewProperty<TextView>(R.id.artistNameTextView)
     private val currentTimestampTextView by getViewProperty<TextView>(R.id.currentTimestampTextView)
@@ -96,8 +100,6 @@ class NowPlayingFragment : Fragment(R.layout.fragment_now_playing) {
     private var animator: ValueAnimator? = null
 
     // AudioFX
-    private val audioSessionId: Int
-        get() = (requireActivity().application as TwelveApplication).audioSessionId
     private val audioEffectsStartForResult =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
             // Empty
@@ -105,22 +107,21 @@ class NowPlayingFragment : Fragment(R.layout.fragment_now_playing) {
 
     // Visualizer
     private val visualizerManager = NierVisualizerManager()
+    private val visualizerNVDataSource by lazy { VisualizerNVDataSource() }
     private val visualizerViewLifecycleObserver = object : DefaultLifecycleObserver {
-        private var isVisualizerInitialized = false
         private var isVisualizerStarted = false
 
         override fun onCreate(owner: LifecycleOwner) {
-            val initResult = visualizerManager.init(audioSessionId)
-            isVisualizerInitialized = initResult == NierVisualizerManager.SUCCESS
+            visualizerManager.init(visualizerNVDataSource)
 
             owner.lifecycleScope.launch {
                 owner.repeatOnLifecycle(Lifecycle.State.STARTED) {
                     viewModel.currentVisualizerType.collectLatest { currentVisualizerType ->
-                        if (isVisualizerInitialized) {
-                            currentVisualizerType.factory.invoke()?.let {
-                                visualizerManager.start(visualizerSurfaceView, it)
-                                isVisualizerStarted = true
-                            } ?: run {
+                        currentVisualizerType.factory.invoke()?.let {
+                            visualizerManager.start(visualizerSurfaceView, it)
+                            isVisualizerStarted = true
+                        } ?: run {
+                            if (isVisualizerStarted) {
                                 visualizerManager.stop()
                                 isVisualizerStarted = false
                             }
@@ -150,12 +151,17 @@ class NowPlayingFragment : Fragment(R.layout.fragment_now_playing) {
         }
 
         override fun onDestroy(owner: LifecycleOwner) {
-            if (isVisualizerInitialized) {
-                visualizerManager.release()
-            }
-            isVisualizerInitialized = false
+            visualizerManager.release()
         }
     }
+
+    // Permissions
+    private val visualizerPermissionsChecker = PermissionsChecker(
+        this,
+        PermissionsUtils.visualizerPermissions,
+        true,
+        R.string.visualizer_permissions_toast,
+    )
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -259,19 +265,43 @@ class NowPlayingFragment : Fragment(R.layout.fragment_now_playing) {
 
         // Bottom bar buttons
         playbackSpeedMaterialButton.setOnClickListener {
-            viewModel.shufflePlaybackSpeed()
+            findNavController().navigateSafe(
+                R.id.action_nowPlayingFragment_to_fragment_playback_control_bottom_sheet_dialog
+            )
+        }
+
+        audioInformationMaterialButton.setOnClickListener {
+            when (val value = viewModel.audio.value) {
+                is RequestStatus.Success -> {
+                    val audio = value.data
+                    findNavController().navigateSafe(
+                        R.id.action_nowPlayingFragment_to_fragment_media_item_bottom_sheet_dialog,
+                        MediaItemBottomSheetDialogFragment.createBundle(
+                            audio.uri,
+                            MediaType.AUDIO,
+                            fromNowPlaying = true,
+                        )
+                    )
+                }
+
+                else -> {
+                    // Do nothing
+                }
+            }
         }
 
         equalizerMaterialButton.setOnClickListener {
             // Open system equalizer
-            audioEffectsStartForResult.launch(
-                Intent(AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL).apply {
-                    putExtra(AudioEffect.EXTRA_PACKAGE_NAME, requireContext().packageName)
-                    putExtra(AudioEffect.EXTRA_AUDIO_SESSION, audioSessionId)
-                    putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC)
-                },
-                null
-            )
+            viewModel.audioSessionId.value?.let { audioSessionId ->
+                audioEffectsStartForResult.launch(
+                    Intent(AudioEffect.ACTION_DISPLAY_AUDIO_EFFECT_CONTROL_PANEL).apply {
+                        putExtra(AudioEffect.EXTRA_PACKAGE_NAME, requireContext().packageName)
+                        putExtra(AudioEffect.EXTRA_AUDIO_SESSION, audioSessionId)
+                        putExtra(AudioEffect.EXTRA_CONTENT_TYPE, AudioEffect.CONTENT_TYPE_MUSIC)
+                    },
+                    null
+                )
+            }
         }
 
         visualizerMaterialButton.setOnClickListener {
@@ -288,32 +318,25 @@ class NowPlayingFragment : Fragment(R.layout.fragment_now_playing) {
                     viewModel.isPlaying.collectLatest { isPlaying ->
                         playPauseMaterialButton.setIconResource(
                             when (isPlaying) {
-                                true -> R.drawable.ic_pause
-                                false -> R.drawable.ic_play_arrow
+                                true -> R.drawable.avd_play_to_pause
+                                false -> R.drawable.avd_pause_to_play
                             }
                         )
+                        AnimatedVectorDrawable::class.safeCast(
+                            playPauseMaterialButton.icon
+                        )?.start()
                     }
                 }
 
                 launch {
-                    viewModel.playbackState.collectLatest { playbackState ->
-                        playbackState?.let {
-                            linearProgressIndicator.isVisible = it == PlaybackState.BUFFERING
-                        }
+                    viewModel.playbackState.collectLatest {
+                        linearProgressIndicator.isVisible = it == PlaybackState.BUFFERING
                     }
                 }
 
                 launch {
-                    viewModel.mediaItem.collectLatest { mediaItem ->
-                        addOrRemoveFromPlaylistsMaterialButton.setOnClickListener {
-                            mediaItem?.localConfiguration?.uri?.let { uri ->
-                                findNavController().navigateSafe(
-                                    R.id.action_nowPlayingFragment_to_fragment_add_or_remove_from_playlists,
-                                    AddOrRemoveFromPlaylistsFragment.createBundle(uri)
-                                )
-                            }
-                        }
-                    }
+                    // Collect audio for add or remove from playlists button
+                    viewModel.audio.collect()
                 }
 
                 launch {
@@ -362,12 +385,10 @@ class NowPlayingFragment : Fragment(R.layout.fragment_now_playing) {
 
                 launch {
                     viewModel.playbackParameters.collectLatest {
-                        it?.also {
-                            playbackSpeedMaterialButton.text = getString(
-                                R.string.playback_speed_format,
-                                playbackSpeedFormatter.format(it.speed),
-                            )
-                        }
+                        playbackSpeedMaterialButton.text = getString(
+                            R.string.playback_speed_format,
+                            playbackSpeedFormatter.format(it.speed),
+                        )
                     }
                 }
 
@@ -403,88 +424,46 @@ class NowPlayingFragment : Fragment(R.layout.fragment_now_playing) {
                 }
 
                 launch {
-                    // Restart animation based on this value being changed
-                    var oldValue = 0f
+                    viewModel.playbackProgress.collectLatest { playbackProgress ->
+                        // Stop the old animator, we'll make a new one anyway
+                        animator?.cancel()
+                        animator = null
 
-                    viewModel.durationCurrentPositionMs.collectLatest { durationCurrentPositionMs ->
-                        val (durationMs, currentPositionMs, playbackSpeed) =
-                            durationCurrentPositionMs.let {
-                                Triple(
-                                    it.first ?: 0L,
-                                    it.second ?: 0L,
-                                    it.third
-                                )
-                            }
+                        val durationMs = playbackProgress.durationMs ?: 0L
+                        val currentPositionMs = playbackProgress.currentPositionMs ?: 0L
 
-                        // We want to lose ms precision with the slider
-                        val durationSecs = durationMs / 1000
-                        val currentPositionSecs = currentPositionMs / 1000
+                        val newValueTo = durationMs.toFloat().takeIf { it > 0 } ?: 1f
+                        val newValue = currentPositionMs.toFloat()
 
-                        val newValueTo = (durationSecs * 1000).toFloat().takeIf { it > 0 } ?: 1f
-                        val newValue = (currentPositionSecs * 1000).toFloat()
+                        progressSlider.valueTo = newValueTo
 
-                        val valueToChanged = progressSlider.valueTo != newValueTo
-                        val valueChanged = oldValue != newValue
+                        if (!playbackProgress.isPlaying) {
+                            // We don't need animation, just update to the current values
+                            progressSlider.value = newValue
 
-                        // Only +1s should be animated
-                        val shouldBeAnimated = (newValue - oldValue) == 1000f
+                            currentTimestampTextView.text =
+                                TimestampFormatter.formatTimestampMillis(currentPositionMs)
+                        } else {
+                            ValueAnimator.ofFloat(newValue, newValueTo).apply {
+                                interpolator = LinearInterpolator()
+                                duration = (newValueTo - newValue).toLong()
+                                    .div(playbackProgress.playbackSpeed.roundToLong())
+                                addUpdateListener {
+                                    val value = it.animatedValue as Float
 
-                        val newAnimator = ValueAnimator.ofFloat(
-                            progressSlider.value, newValue
-                        ).apply {
-                            interpolator = LinearInterpolator()
-                            duration = 1000 / playbackSpeed.roundToLong()
-                            doOnStart {
-                                // Update valueTo at the start of the animation
-                                if (progressSlider.valueTo != newValueTo) {
-                                    progressSlider.valueTo = newValueTo
+                                    if (!isProgressSliderDragging) {
+                                        progressSlider.value = value
+                                    }
+
+                                    currentTimestampTextView.text =
+                                        TimestampFormatter.formatTimestampMillis(value)
                                 }
-                            }
-                            addUpdateListener {
-                                progressSlider.value = (it.animatedValue as Float)
+                            }.also {
+                                animator = it
+                                it.start()
                             }
                         }
 
-                        oldValue = newValue
-
-                        /**
-                         * Update only if:
-                         * - The value changed and the user isn't dragging the slider
-                         * - valueTo changed
-                         */
-                        if ((!isProgressSliderDragging && valueChanged) || valueToChanged) {
-                            val afterOldAnimatorEnded = {
-                                if (shouldBeAnimated) {
-                                    animator = newAnimator
-                                    newAnimator.start()
-                                } else {
-                                    animator = null
-                                    // Update both valueTo and value
-                                    progressSlider.valueTo = newValueTo
-                                    progressSlider.value = newValue
-                                }
-                            }
-
-                            animator?.also { oldAnimator ->
-                                // Start the new animation right after old one finishes
-                                oldAnimator.doOnEnd {
-                                    afterOldAnimatorEnded()
-                                }
-
-                                if (oldAnimator.isRunning) {
-                                    oldAnimator.cancel()
-                                } else {
-                                    oldAnimator.end()
-                                }
-                            } ?: run {
-                                // This is the first animation
-                                afterOldAnimatorEnded()
-                            }
-                        }
-
-                        currentTimestampTextView.text = TimestampFormatter.formatTimestampMillis(
-                            currentPositionMs
-                        )
                         durationTimestampTextView.text = TimestampFormatter.formatTimestampMillis(
                             durationMs
                         )
@@ -493,38 +472,47 @@ class NowPlayingFragment : Fragment(R.layout.fragment_now_playing) {
 
                 launch {
                     viewModel.availableCommands.collectLatest {
-                        it?.let {
-                            shuffleMaterialButton.isEnabled = it.contains(
-                                Player.COMMAND_SET_SHUFFLE_MODE
-                            )
+                        shuffleMaterialButton.isEnabled = it.contains(
+                            Player.COMMAND_SET_SHUFFLE_MODE
+                        )
 
-                            previousTrackMaterialButton.isEnabled = it.contains(
-                                Player.COMMAND_SEEK_TO_PREVIOUS
-                            )
+                        previousTrackMaterialButton.isEnabled = it.contains(
+                            Player.COMMAND_SEEK_TO_PREVIOUS
+                        )
 
-                            playPauseMaterialButton.isEnabled = it.contains(
-                                Player.COMMAND_PLAY_PAUSE
-                            )
+                        playPauseMaterialButton.isEnabled = it.contains(
+                            Player.COMMAND_PLAY_PAUSE
+                        )
 
-                            nextTrackMaterialButton.isEnabled = it.contains(
-                                Player.COMMAND_SEEK_TO_NEXT
-                            )
+                        nextTrackMaterialButton.isEnabled = it.contains(
+                            Player.COMMAND_SEEK_TO_NEXT
+                        )
 
-                            repeatMaterialButton.isEnabled = it.contains(
-                                Player.COMMAND_SET_REPEAT_MODE
-                            )
+                        repeatMaterialButton.isEnabled = it.contains(
+                            Player.COMMAND_SET_REPEAT_MODE
+                        )
 
-                            playbackSpeedMaterialButton.isEnabled = it.contains(
-                                Player.COMMAND_SET_SPEED_AND_PITCH
-                            )
-                        }
+                        playbackSpeedMaterialButton.isEnabled = it.contains(
+                            Player.COMMAND_SET_SPEED_AND_PITCH
+                        )
                     }
                 }
 
                 launch {
-                    viewModel.currentVisualizerType.collectLatest {
-                        visualizerSurfaceView.isVisible =
-                            it != NowPlayingViewModel.VisualizerType.NONE
+                    viewModel.audioSessionId.collectLatest {
+                        visualizerNVDataSource.setAudioSessionId(it)
+                    }
+                }
+
+                launch {
+                    viewModel.isVisualizerEnabled.collectLatest {
+                        visualizerSurfaceView.isVisible = it
+
+                        if (it) {
+                            visualizerPermissionsChecker.withPermissionsGranted {
+                                visualizerNVDataSource.workFlow.collect()
+                            }
+                        }
                     }
                 }
             }

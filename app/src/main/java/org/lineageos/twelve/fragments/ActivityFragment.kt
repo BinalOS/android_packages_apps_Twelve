@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024 The LineageOS Project
+ * SPDX-FileCopyrightText: 2024-2025 The LineageOS Project
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -69,10 +69,7 @@ class ActivityFragment : Fragment(R.layout.fragment_activity) {
                             ArtistFragment.createBundle(item.uri)
                         )
 
-                        is Audio -> findNavController().navigateSafe(
-                            R.id.action_mainFragment_to_fragment_audio_bottom_sheet_dialog,
-                            AudioBottomSheetDialogFragment.createBundle(item.uri)
-                        )
+                        is Audio -> viewModel.playAudio(listOf(item), 0)
 
                         is Genre -> findNavController().navigateSafe(
                             R.id.action_mainFragment_to_fragment_genre,
@@ -84,6 +81,18 @@ class ActivityFragment : Fragment(R.layout.fragment_activity) {
                             PlaylistFragment.createBundle(item.uri)
                         )
                     }
+                }
+
+                view.setOnItemLongClickListener { items, position ->
+                    items[position].let {
+                        findNavController().navigateSafe(
+                            R.id.action_mainFragment_to_fragment_media_item_bottom_sheet_dialog,
+                            MediaItemBottomSheetDialogFragment.createBundle(
+                                it.uri, it.mediaType
+                            )
+                        )
+                    }
+                    true
                 }
             }
 
@@ -138,7 +147,7 @@ class ActivityFragment : Fragment(R.layout.fragment_activity) {
                 }
 
                 is RequestStatus.Error -> {
-                    Log.e(LOG_TAG, "Failed to load activity, error: ${it.error}")
+                    Log.e(LOG_TAG, "Failed to load activity, error: ${it.error}", it.throwable)
 
                     recyclerView.isVisible = false
                     noElementsLinearLayout.isVisible = true

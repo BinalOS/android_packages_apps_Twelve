@@ -1,5 +1,5 @@
 /*
- * SPDX-FileCopyrightText: 2024 The LineageOS Project
+ * SPDX-FileCopyrightText: 2024-2025 The LineageOS Project
  * SPDX-License-Identifier: Apache-2.0
  */
 
@@ -123,8 +123,10 @@ class MainFragment : Fragment(R.layout.fragment_main) {
                             )
 
                             is Audio -> findNavController().navigateSafe(
-                                R.id.action_mainFragment_to_fragment_audio_bottom_sheet_dialog,
-                                AudioBottomSheetDialogFragment.createBundle(it.uri)
+                                R.id.action_mainFragment_to_fragment_media_item_bottom_sheet_dialog,
+                                MediaItemBottomSheetDialogFragment.createBundle(
+                                    it.uri, it.mediaType
+                                )
                             )
 
                             is Genre -> findNavController().navigateSafe(
@@ -138,6 +140,19 @@ class MainFragment : Fragment(R.layout.fragment_main) {
                             )
                         }
                     }
+                }
+
+                view.setOnLongClickListener {
+                    item?.let {
+                        findNavController().navigateSafe(
+                            R.id.action_mainFragment_to_fragment_media_item_bottom_sheet_dialog,
+                            MediaItemBottomSheetDialogFragment.createBundle(
+                                it.uri, it.mediaType
+                            )
+                        )
+                        true
+                    }
+                    false
                 }
             }
 
@@ -292,6 +307,15 @@ class MainFragment : Fragment(R.layout.fragment_main) {
                 R.id.action_mainFragment_to_fragment_provider_selector_dialog
             )
         }
+        providerMaterialButton.setOnLongClickListener {
+            providersViewModel.navigationProvider.value?.let {
+                findNavController().navigateSafe(
+                    R.id.action_mainFragment_to_fragment_provider_information_bottom_sheet_dialog,
+                    ManageProviderFragment.createBundle(it.type, it.typeId),
+                )
+                true
+            } ?: false
+        }
 
         settingsMaterialButton.setOnClickListener {
             val intent = Intent(context, SettingsActivity::class.java)
@@ -357,6 +381,9 @@ class MainFragment : Fragment(R.layout.fragment_main) {
                         it?.let {
                             providerMaterialButton.text = it.name
                             providerMaterialButton.setIconResource(it.type.iconDrawableResId)
+                        } ?: run {
+                            providerMaterialButton.setText(R.string.no_provider)
+                            providerMaterialButton.setIconResource(R.drawable.ic_warning)
                         }
                     }
                 }
@@ -424,7 +451,8 @@ class MainFragment : Fragment(R.layout.fragment_main) {
                             is RequestStatus.Error -> {
                                 Log.e(
                                     LOG_TAG,
-                                    "Failed to load search results, error: ${it.error}"
+                                    "Failed to load search results, error: ${it.error}",
+                                    it.throwable
                                 )
 
                                 searchAdapter.submitList(listOf())
